@@ -10,26 +10,28 @@ It prefixes the visible terminal title with:
 
 ## Installation
 
-### Marketplace
+### Marketplace status
 
-`omp-title-icon` repo itself is a marketplace source. Add the marketplace, then install the plugin:
+This repository now includes a marketplace catalog for `omp-title-icon/omp-title-icon` at `.claude-plugin/marketplace.json`, but current OMP marketplace/plugin-root loading does not execute extension modules declared only through `package.json -> omp.extensions`. In the current OMP architecture, marketplace install is prepared but not yet functional for this plugin type.
+
+Use one of the local extension loading paths below until upstream marketplace support for extension-module plugins exists.
+
+### Local extension path
 
 ```bash
-/marketplace add omp-title-icon/omp-title-icon
-/marketplace install omp-title-icon@omp-title-icon
+bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --extension C:/Users/Anton/.omp/temp/omp-title-icon
 ```
 
-CLI equivalent:
+### Project settings
 
-```bash
-omp plugin marketplace add omp-title-icon/omp-title-icon
-omp plugin install omp-title-icon@omp-title-icon
-```
+Add the repo root as an explicit extension path in `.omp/settings.json`:
 
-### Local plugin directory
-
-```bash
-bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --plugin-dir C:/Users/Anton/.omp/temp/omp-title-icon
+```json
+{
+  "extensions": [
+    "C:/Users/Anton/.omp/temp/omp-title-icon"
+  ]
+}
 ```
 
 ## Requirements
@@ -56,10 +58,10 @@ bun run check
 
 1. Open **Windows Terminal**.
 2. Make sure the active profile does **not** set `suppressApplicationTitle: true`.
-3. Start OMP with the local plugin directory:
+3. Start OMP with the local extension path:
 
 ```bash
-bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --plugin-dir C:/Users/Anton/.omp/temp/omp-title-icon
+bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --extension C:/Users/Anton/.omp/temp/omp-title-icon
 ```
 
 4. Start a normal prompt. While the model is responding, the title should start with `○`.
@@ -73,11 +75,8 @@ bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --p
 - If the title never updates in the visible tab, check `suppressApplicationTitle` in the Windows Terminal profile.
 - If you want less competition from OMP's built-in auto-title generation, try launching with `PI_NO_TITLE=1`.
 
-## Marketplace layout
+## Marketplace note
 
-This repository doubles as both:
-
-- the plugin root (`omp.extensions -> ./src/extension.ts`)
-- a marketplace source via `.claude-plugin/marketplace.json` with plugin source `"./"`
-
-That means `omp-title-icon/omp-title-icon` can be added directly as a marketplace source without needing a separate catalog repository.
+- Marketplace metadata for `omp-title-icon/omp-title-icon` is checked in at `.claude-plugin/marketplace.json`.
+- Current OMP marketplace/plugin-root loading does not activate extension-module plugins that rely only on `package.json -> omp.extensions`.
+- Until upstream support exists, load this plugin via `--extension` or an explicit `extensions` setting path.
