@@ -1,0 +1,41 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "omp-title-icon",
+  "owner": {
+    "name": "omp-title-icon"
+  },
+  "metadata": {
+    "description": "Marketplace source for the omp-title-icon Windows Terminal title takeover plugin.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "omp-title-icon",
+      "source": "./",
+      "description": "Best-effort Windows Terminal title takeover with idle/running/ask icons for OMP sessions.",
+      "version": "0.1.0",
+      "author": {
+        "name": "omp-title-icon"
+      },
+      "homepage": "https://github.com/omp-title-icon/omp-title-icon",
+      "repository": "https://github.com/omp-title-icon/omp-title-icon",
+      "license": "MIT",
+      "keywords": [
+        "omp",
+        "windows-terminal",
+        "title",
+        "session",
+        "idle",
+        "running",
+        "ask"
+      ],
+      "category": "productivity",
+      "tags": [
+        "windows",
+        "terminal",
+        "title",
+        "extension"
+      ]
+    }
+  ]
+}
