@@ -80,17 +80,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function extractConfiguredIcons(config: unknown): unknown | undefined {
-  if (!isRecord(config)) {
-    return undefined;
+type ExtractConfiguredIconsResult =
+  | { kind: "configured"; icons: unknown }
+  | { kind: "missing-icons" }
+  | { kind: "invalid-structure" };
+
+function extractConfiguredIcons(config: unknown): ExtractConfiguredIconsResult {
+  if (!isRecord(config) || !("ompTitleIcon" in config)) {
+    return { kind: "missing-icons" };
   }
 
   const extensionConfig = config.ompTitleIcon;
-  if (!isRecord(extensionConfig) || !("icons" in extensionConfig)) {
-    return undefined;
+  if (!isRecord(extensionConfig)) {
+    return { kind: "invalid-structure" };
   }
 
-  return extensionConfig.icons;
+  if (!("icons" in extensionConfig)) {
+    return { kind: "missing-icons" };
+  }
+
+  return { kind: "configured", icons: extensionConfig.icons };
 }
 
 function normalizePrefix(value: unknown, fallback: string): string {
@@ -121,11 +130,16 @@ function parseConfiguredPrefixes(
   try {
     const parsed = format === "yaml" ? Bun.YAML.parse(text) : JSON.parse(text);
     const configuredIcons = extractConfiguredIcons(parsed);
-    if (configuredIcons === undefined) {
+    if (configuredIcons.kind === "missing-icons") {
       return { kind: "missing-icons" };
     }
 
-    return { kind: "parsed", prefixes: normalizeTitlePrefixes(configuredIcons) };
+    const prefixes =
+      configuredIcons.kind === "invalid-structure"
+        ? { ...DEFAULT_TITLE_PREFIXES }
+        : normalizeTitlePrefixes(configuredIcons.icons);
+
+    return { kind: "parsed", prefixes };
   } catch {
     return { kind: "parse-error" };
   }

@@ -588,6 +588,45 @@ describe("config-backed title prefixes", () => {
     }
   });
 
+  it.each([
+    {
+      name: 'ompTitleIcon is not an object',
+      configLines: ["ompTitleIcon: 123"],
+    },
+    {
+      name: 'ompTitleIcon.icons is not an object',
+      configLines: ["ompTitleIcon:", "  icons: 123"],
+    },
+  ])(
+    "uses built-in defaults when config.yml is structurally invalid ($name)",
+    async ({ configLines }) => {
+      const fixture = createTempHome([
+        {
+          relativePath: path.join(".omp", "agent", "config.yml"),
+          content: configLines.join("\n"),
+        },
+        {
+          relativePath: path.join(".omp", "agent", "settings.json"),
+          content: JSON.stringify({
+            ompTitleIcon: {
+              icons: { idle: "LEGACY", running: "LEG-RUN", ask: "LEG-ASK" },
+            },
+          }),
+        },
+      ]);
+
+      try {
+        const { titles } = await withMockedHomeDir(fixture.homeDir, (registerTitleIconImpl) =>
+          expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
+        );
+
+        expect(titles).toEqual(["◆ Build Fix"]);
+      } finally {
+        fixture.cleanup();
+      }
+    },
+  );
+
   it("falls back per field for invalid values while preserving empty strings", async () => {
     const fixture = createTempHome([
       {
