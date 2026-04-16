@@ -4,21 +4,21 @@ Best-effort cross-platform terminal title status extension for Oh My Pi / Pi cod
 
 It prefixes the visible terminal title with:
 
-- `◆` when idle
-- `·` when running
+- `✳` when idle
+- `⟳` when running
 - `?!` when the `ask` tool is waiting for input
 
 ## User overrides
 
-By default the extension uses `◆` for idle, `·` for running, and `?!` while the `ask` tool is waiting for input.
+By default the extension uses `✳` for idle, `⟳` for running, and `?!` while the `ask` tool is waiting for input.
 
 For per-user overrides, define `ompTitleIcon.icons` in `~/.omp/agent/config.yml`:
 
 ```yaml
 ompTitleIcon:
   icons:
-    idle: "◆"
-    running: "·"
+    idle: "✳"
+    running: "⟳"
     ask: "?!"
 ```
 
@@ -32,8 +32,8 @@ Once `~/.omp/agent/config.yml` defines `ompTitleIcon.icons`, the extension does 
 {
   "ompTitleIcon": {
     "icons": {
-      "idle": "◆",
-      "running": "·",
+      "idle": "✳",
+      "running": "⟳",
       "ask": "?!"
     }
   }
@@ -46,7 +46,7 @@ Set any icon to an empty string to remove the prefix for that state.
 ompTitleIcon:
   icons:
     idle: ""
-    running: "·"
+    running: "⟳"
     ask: "?!"
 ```
 

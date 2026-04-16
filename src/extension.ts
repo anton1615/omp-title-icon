@@ -54,11 +54,7 @@ const REASSERT_INTERVAL_MS = 250;
 const ASK_TOOL_NAME = "ask";
 const DEFAULT_FALLBACK_TITLE = "π";
 
-const DEFAULT_TITLE_PREFIXES: TitlePrefixes = {
-  idle: "◆",
-  running: "·",
-  ask: "?!",
-};
+const DEFAULT_TITLE_PREFIXES: TitlePrefixes = { idle: "✳", running: "⟳", ask: "?!" }
 const defaultScheduler: TitleScheduler = {
   now: () => Date.now(),
   setInterval: (callback, intervalMs) => setInterval(callback, intervalMs),

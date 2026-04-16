@@ -143,8 +143,8 @@ describe("README contract", () => {
   it("documents the built-in default icons", () => {
     const introSection = extractReadmeIntro(readmeText);
 
-    expectReadmeSectionToMentionStateIcon(introSection, "idle", "◆");
-    expectReadmeSectionToMentionStateIcon(introSection, "running", "·");
+    expectReadmeSectionToMentionStateIcon(introSection, "idle", "✳");
+    expectReadmeSectionToMentionStateIcon(introSection, "running", "⟳");
     expect(introSection).toMatch(/(?:ask tool|ask prefix|ask)[\s\S]{0,120}\?!|\?![\s\S]{0,120}(?:ask tool|ask prefix|ask)/i);
   });
 
@@ -157,15 +157,15 @@ describe("README contract", () => {
     expectReadmeSectionToContainFencedBlock(userOverridesSection, "yaml", [
       /ompTitleIcon\s*:/,
       /icons\s*:/,
-      /idle\s*:\s*"◆"/,
-      /running\s*:\s*"·"/,
+      /idle\s*:\s*"✳"/,
+      /running\s*:\s*"⟳"/,
       /ask\s*:\s*"\?!"/,
     ]);
     expectReadmeSectionToContainFencedBlock(userOverridesSection, "json", [
       /"ompTitleIcon"\s*:/,
       /"icons"\s*:/,
-      /"idle"\s*:\s*"◆"/,
-      /"running"\s*:\s*"·"/,
+      /"idle"\s*:\s*"✳"/,
+      /"running"\s*:\s*"⟳"/,
       /"ask"\s*:\s*"\?!"/,
     ]);
     expect(userOverridesSection).toMatch(
@@ -181,7 +181,7 @@ describe("README contract", () => {
       /ompTitleIcon\s*:/,
       /icons\s*:/,
       /idle\s*:\s*""/,
-      /running\s*:\s*"·"/,
+      /running\s*:\s*"⟳"/,
       /ask\s*:\s*"\?!"/,
     ]);
     expect(userOverridesSection).toMatch(/empty string to remove the prefix/i);
@@ -528,7 +528,7 @@ describe("config-backed title prefixes", () => {
         ),
       );
 
-      expect(titles).toEqual(["◆ Build Fix"]);
+      expect(titles).toEqual(["✳ Build Fix"]);
     } finally {
       canonicalFixture.cleanup();
       envFixture.cleanup();
@@ -554,7 +554,7 @@ describe("config-backed title prefixes", () => {
         expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
       );
 
-      expect(titles).toEqual(["◆ Build Fix"]);
+      expect(titles).toEqual(["✳ Build Fix"]);
     } finally {
       fixture.cleanup();
     }
@@ -648,7 +648,7 @@ describe("config-backed title prefixes", () => {
           expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
         );
 
-        expect(titles).toEqual(["◆ Build Fix"]);
+        expect(titles).toEqual(["✳ Build Fix"]);
       } finally {
         fixture.cleanup();
       }
@@ -687,7 +687,7 @@ describe("config-backed title prefixes", () => {
           expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
         );
 
-        expect(titles).toEqual(["◆ Build Fix"]);
+        expect(titles).toEqual(["✳ Build Fix"]);
       } finally {
         fixture.cleanup();
       }
@@ -728,7 +728,7 @@ describe("config-backed title prefixes", () => {
         );
       });
 
-      expect(titles).toEqual(["Build Fix", "· Build Fix", "ASK Build Fix"]);
+      expect(titles).toEqual(["Build Fix", "⟳ Build Fix", "ASK Build Fix"]);
     } finally {
       fixture.cleanup();
     }
@@ -755,7 +755,7 @@ describe("config-backed title prefixes", () => {
         expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
       );
 
-      expect(titles).toEqual(["◆ Build Fix"]);
+      expect(titles).toEqual(["✳ Build Fix"]);
     } finally {
       fixture.cleanup();
     }
@@ -774,7 +774,7 @@ describe("config-backed title prefixes", () => {
         expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
       );
 
-      expect(titles).toEqual(["◆ Build Fix"]);
+      expect(titles).toEqual(["✳ Build Fix"]);
     } finally {
       fixture.cleanup();
     }
@@ -793,7 +793,7 @@ describe("config-backed title prefixes", () => {
         expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
       );
 
-      expect(titles).toEqual(["◆ Build Fix"]);
+      expect(titles).toEqual(["✳ Build Fix"]);
     } finally {
       fixture.cleanup();
     }
@@ -881,11 +881,11 @@ describe("registerTitleIcon", () => {
     handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
     handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
 
-    expect(titles[0]).toBe("◆ Build Fix");
-    expect(titles[1]).toBe("· Build Fix");
+    expect(titles[0]).toBe("✳ Build Fix");
+    expect(titles[1]).toBe("⟳ Build Fix");
     expect(titles[2]).toBe("?! Build Fix");
-    expect(titles[3]).toBe("· Build Fix");
-    expect(titles[4]).toBe("◆ Build Fix");
+    expect(titles[3]).toBe("⟳ Build Fix");
+    expect(titles[4]).toBe("✳ Build Fix");
   });
 
   it("registers and drives the title lifecycle when TERM_PROGRAM enables the plugin", () => {
@@ -907,11 +907,11 @@ describe("registerTitleIcon", () => {
     handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
     handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
 
-    expect(titles[0]).toBe("◆ Build Fix");
-    expect(titles[1]).toBe("· Build Fix");
+    expect(titles[0]).toBe("✳ Build Fix");
+    expect(titles[1]).toBe("⟳ Build Fix");
     expect(titles[2]).toBe("?! Build Fix");
-    expect(titles[3]).toBe("· Build Fix");
-    expect(titles[4]).toBe("◆ Build Fix");
+    expect(titles[3]).toBe("⟳ Build Fix");
+    expect(titles[4]).toBe("✳ Build Fix");
   });
 
   it("clamps ask depth at zero when ask ends extra times", () => {
@@ -928,7 +928,7 @@ describe("registerTitleIcon", () => {
     handlers.get("session_start")?.({ type: "session_start" }, ctx);
     handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
 
-    expect(titles).toEqual(["◆ Build Fix", "◆ Build Fix"]);
+    expect(titles).toEqual(["✳ Build Fix", "✳ Build Fix"]);
   });
 
   it("force-reasserts the same title during the takeover window and then stops", () => {
@@ -943,12 +943,12 @@ describe("registerTitleIcon", () => {
     }, ["TERM"]);
 
     handlers.get("session_start")?.({ type: "session_start" }, ctx);
-    expect(titles).toEqual(["◆ Build Fix"]);
+    expect(titles).toEqual(["✳ Build Fix"]);
     expect(scheduler.hasInterval).toBe(true);
 
     scheduler.advance(250);
     scheduler.advance(250);
-    expect(titles).toEqual(["◆ Build Fix", "◆ Build Fix", "◆ Build Fix"]);
+    expect(titles).toEqual(["✳ Build Fix", "✳ Build Fix", "✳ Build Fix"]);
 
     scheduler.advance(2000);
     expect(scheduler.hasInterval).toBe(false);
