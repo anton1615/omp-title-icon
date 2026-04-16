@@ -86,9 +86,19 @@ describe("computeVisualState", () => {
 
 describe("renderTitle", () => {
   it("renders the configured icons", () => {
-    expect(renderTitle("Build Fix", "idle")).toBe("● Build Fix");
-    expect(renderTitle("Build Fix", "running")).toBe("○ Build Fix");
-    expect(renderTitle("Build Fix", "ask")).toBe("? Build Fix");
+    expect(renderTitle("Build Fix", "idle")).toBe("◆ Build Fix");
+    expect(renderTitle("Build Fix", "running")).toBe("· Build Fix");
+    expect(renderTitle("Build Fix", "ask")).toBe("?! Build Fix");
+  });
+
+  it("omits the separator when the configured prefix is empty", () => {
+    expect(
+      renderTitle("Build Fix", "running", {
+        idle: "◆",
+        running: "",
+        ask: "?!",
+      }),
+    ).toBe("Build Fix");
   });
 });
 
@@ -200,7 +210,29 @@ describe("applyTitle", () => {
     applyTitle(pi, ctx, state);
     applyTitle(pi, ctx, state, { force: true });
 
-    expect(titles).toEqual(["● Build Fix", "● Build Fix"]);
+    expect(titles).toEqual(["◆ Build Fix", "◆ Build Fix"]);
+  });
+
+  it("uses injected prefixes when provided", () => {
+    const { pi } = createFakePi("Build Fix");
+    const { ctx, titles } = createFakeContext();
+    const state: TitleControllerState = {
+      agentRunning: true,
+      askDepth: 0,
+      reassertTimer: undefined,
+      reassertUntil: 0,
+      lastAppliedTitle: undefined,
+    };
+
+    applyTitle(pi, ctx, state, {
+      prefixes: {
+        idle: "IDLE",
+        running: "RUN",
+        ask: "ASK",
+      },
+    });
+
+    expect(titles).toEqual(["RUN Build Fix"]);
   });
 });
 
@@ -231,11 +263,11 @@ describe("registerTitleIcon", () => {
     handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
     handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
 
-    expect(titles[0]).toBe("● Build Fix");
-    expect(titles[1]).toBe("○ Build Fix");
-    expect(titles[2]).toBe("? Build Fix");
-    expect(titles[3]).toBe("○ Build Fix");
-    expect(titles[4]).toBe("● Build Fix");
+    expect(titles[0]).toBe("◆ Build Fix");
+    expect(titles[1]).toBe("· Build Fix");
+    expect(titles[2]).toBe("?! Build Fix");
+    expect(titles[3]).toBe("· Build Fix");
+    expect(titles[4]).toBe("◆ Build Fix");
   });
 
   it("registers and drives the title lifecycle when TERM_PROGRAM enables the plugin", () => {
@@ -256,11 +288,11 @@ describe("registerTitleIcon", () => {
     handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
     handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
 
-    expect(titles[0]).toBe("● Build Fix");
-    expect(titles[1]).toBe("○ Build Fix");
-    expect(titles[2]).toBe("? Build Fix");
-    expect(titles[3]).toBe("○ Build Fix");
-    expect(titles[4]).toBe("● Build Fix");
+    expect(titles[0]).toBe("◆ Build Fix");
+    expect(titles[1]).toBe("· Build Fix");
+    expect(titles[2]).toBe("?! Build Fix");
+    expect(titles[3]).toBe("· Build Fix");
+    expect(titles[4]).toBe("◆ Build Fix");
   });
 
   it("clamps ask depth at zero when ask ends extra times", () => {
@@ -276,7 +308,7 @@ describe("registerTitleIcon", () => {
     handlers.get("session_start")?.({ type: "session_start" }, ctx);
     handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
 
-    expect(titles).toEqual(["● Build Fix", "● Build Fix"]);
+    expect(titles).toEqual(["◆ Build Fix", "◆ Build Fix"]);
   });
 
   it("force-reasserts the same title during the takeover window and then stops", () => {
@@ -290,12 +322,12 @@ describe("registerTitleIcon", () => {
     });
 
     handlers.get("session_start")?.({ type: "session_start" }, ctx);
-    expect(titles).toEqual(["● Build Fix"]);
+    expect(titles).toEqual(["◆ Build Fix"]);
     expect(scheduler.hasInterval).toBe(true);
 
     scheduler.advance(250);
     scheduler.advance(250);
-    expect(titles).toEqual(["● Build Fix", "● Build Fix", "● Build Fix"]);
+    expect(titles).toEqual(["◆ Build Fix", "◆ Build Fix", "◆ Build Fix"]);
 
     scheduler.advance(2000);
     expect(scheduler.hasInterval).toBe(false);

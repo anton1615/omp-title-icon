@@ -23,6 +23,12 @@ export interface ExtensionAPI {
 
 export type TitleIconState = "idle" | "running" | "ask";
 
+export interface TitlePrefixes {
+  idle: string;
+  running: string;
+  ask: string;
+}
+
 export interface TitleControllerState {
   agentRunning: boolean;
   askDepth: number;
@@ -40,6 +46,7 @@ export interface TitleScheduler {
 export interface RegisterTitleIconOptions {
   scheduler?: TitleScheduler;
   env?: Record<string, string | undefined>;
+  prefixes?: TitlePrefixes;
 }
 
 const REASSERT_DURATION_MS = 2000;
@@ -47,6 +54,11 @@ const REASSERT_INTERVAL_MS = 250;
 const ASK_TOOL_NAME = "ask";
 const DEFAULT_FALLBACK_TITLE = "π";
 
+export const DEFAULT_TITLE_PREFIXES: TitlePrefixes = {
+  idle: "◆",
+  running: "·",
+  ask: "?!",
+};
 const defaultScheduler: TitleScheduler = {
   now: () => Date.now(),
   setInterval: (callback, intervalMs) => setInterval(callback, intervalMs),
@@ -113,14 +125,22 @@ export function computeVisualState(
   return "idle";
 }
 
-export function renderTitle(baseTitle: string, state: TitleIconState): string {
+function formatTitle(prefix: string, baseTitle: string): string {
+  return prefix ? `${prefix} ${baseTitle}` : baseTitle;
+}
+
+export function renderTitle(
+  baseTitle: string,
+  state: TitleIconState,
+  prefixes: TitlePrefixes = DEFAULT_TITLE_PREFIXES,
+): string {
   switch (state) {
     case "ask":
-      return `? ${baseTitle}`;
+      return formatTitle(prefixes.ask, baseTitle);
     case "running":
-      return `○ ${baseTitle}`;
+      return formatTitle(prefixes.running, baseTitle);
     case "idle":
-      return `● ${baseTitle}`;
+      return formatTitle(prefixes.idle, baseTitle);
   }
 }
 
@@ -128,10 +148,14 @@ export function applyTitle(
   pi: Pick<ExtensionAPI, "getSessionName">,
   ctx: Pick<ExtensionContext, "cwd" | "ui">,
   state: TitleControllerState,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; prefixes?: TitlePrefixes } = {},
 ): void {
   const baseTitle = computeBaseTitle(pi.getSessionName(), ctx.cwd);
-  const nextTitle = renderTitle(baseTitle, computeVisualState(state.agentRunning, state.askDepth));
+  const nextTitle = renderTitle(
+    baseTitle,
+    computeVisualState(state.agentRunning, state.askDepth),
+    options.prefixes ?? DEFAULT_TITLE_PREFIXES,
+  );
 
   if (!options.force && state.lastAppliedTitle === nextTitle) {
     return;
@@ -155,11 +179,12 @@ function startReassert(
   ctx: Pick<ExtensionContext, "cwd" | "ui">,
   state: TitleControllerState,
   scheduler: TitleScheduler,
+  prefixes: TitlePrefixes,
 ): void {
   stopReassert(state, scheduler);
   state.reassertUntil = scheduler.now() + REASSERT_DURATION_MS;
 
-  applyTitle(pi, ctx, state, { force: true });
+  applyTitle(pi, ctx, state, { force: true, prefixes });
 
   state.reassertTimer = scheduler.setInterval(() => {
     if (scheduler.now() >= state.reassertUntil) {
@@ -167,7 +192,7 @@ function startReassert(
       return;
     }
 
-    applyTitle(pi, ctx, state, { force: true });
+    applyTitle(pi, ctx, state, { force: true, prefixes });
   }, REASSERT_INTERVAL_MS);
 }
 
@@ -187,6 +212,7 @@ export default function registerTitleIcon(
 ): void {
   const scheduler = options.scheduler ?? defaultScheduler;
   const env = options.env ?? process.env;
+  const prefixes = options.prefixes ?? DEFAULT_TITLE_PREFIXES;
 
   if (!shouldEnableTitlePlugin(env)) {
     return;
@@ -201,7 +227,7 @@ export default function registerTitleIcon(
   };
 
   const reassert = (ctx: ExtensionContext) => {
-    startReassert(pi, ctx, state, scheduler);
+    startReassert(pi, ctx, state, scheduler, prefixes);
   };
 
   registerReassertEvent(pi, "session_start", reassert);
@@ -211,12 +237,12 @@ export default function registerTitleIcon(
 
   pi.on("agent_start", (_event: unknown, ctx: ExtensionContext) => {
     state.agentRunning = true;
-    startReassert(pi, ctx, state, scheduler);
+    startReassert(pi, ctx, state, scheduler, prefixes);
   });
 
   pi.on("agent_end", (_event: unknown, ctx: ExtensionContext) => {
     state.agentRunning = false;
-    startReassert(pi, ctx, state, scheduler);
+    startReassert(pi, ctx, state, scheduler, prefixes);
   });
 
   pi.on("tool_execution_start", (event: unknown, ctx: ExtensionContext) => {
@@ -225,7 +251,7 @@ export default function registerTitleIcon(
     }
 
     state.askDepth += 1;
-    startReassert(pi, ctx, state, scheduler);
+    startReassert(pi, ctx, state, scheduler, prefixes);
   });
 
   pi.on("tool_execution_end", (event: unknown, ctx: ExtensionContext) => {
@@ -234,7 +260,7 @@ export default function registerTitleIcon(
     }
 
     state.askDepth = Math.max(0, state.askDepth - 1);
-    startReassert(pi, ctx, state, scheduler);
+    startReassert(pi, ctx, state, scheduler, prefixes);
   });
 }
 
