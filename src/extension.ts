@@ -68,11 +68,24 @@ const defaultScheduler: TitleScheduler = {
 const CONFIG_RELATIVE_PATH = [".omp", "agent", "config.yml"] as const;
 const LEGACY_SETTINGS_RELATIVE_PATH = [".omp", "agent", "settings.json"] as const;
 
-function defaultReadText(filePath: string): string | undefined {
+type ReadTextResult =
+  | { kind: "read"; text: string }
+  | { kind: "missing" }
+  | { kind: "error" };
+
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return isRecord(error) && typeof error.code === "string";
+}
+
+function defaultReadText(filePath: string): ReadTextResult {
   try {
-    return fs.readFileSync(filePath, "utf8");
-  } catch {
-    return undefined;
+    return { kind: "read", text: fs.readFileSync(filePath, "utf8") };
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      return { kind: "missing" };
+    }
+
+    return { kind: "error" };
   }
 }
 
@@ -152,25 +165,25 @@ function resolveHomeDir(): string {
 function loadTitlePrefixesFromHome(homeDir: string): TitlePrefixes | undefined {
   const configPath = path.join(homeDir, ...CONFIG_RELATIVE_PATH);
   const configText = defaultReadText(configPath);
-  if (configText !== undefined) {
-    const configPrefixes = parseConfiguredPrefixes(configText, "yaml");
+  if (configText.kind === "read") {
+    const configPrefixes = parseConfiguredPrefixes(configText.text, "yaml");
     if (configPrefixes.kind === "parsed") {
       return configPrefixes.prefixes;
     }
+
     if (configPrefixes.kind === "parse-error") {
       return undefined;
     }
+  } else if (configText.kind === "error") {
+    return undefined;
   }
 
   const settingsPath = path.join(homeDir, ...LEGACY_SETTINGS_RELATIVE_PATH);
   const settingsText = defaultReadText(settingsPath);
-  if (settingsText !== undefined) {
-    const legacyPrefixes = parseConfiguredPrefixes(settingsText, "json");
+  if (settingsText.kind === "read") {
+    const legacyPrefixes = parseConfiguredPrefixes(settingsText.text, "json");
     if (legacyPrefixes.kind === "parsed") {
       return legacyPrefixes.prefixes;
-    }
-    if (legacyPrefixes.kind === "parse-error") {
-      return undefined;
     }
 
     return undefined;

@@ -532,6 +532,31 @@ describe("config-backed title prefixes", () => {
     }
   });
 
+  it("uses built-in defaults when config.yml exists but cannot be read", async () => {
+    const fixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "settings.json"),
+        content: JSON.stringify({
+          ompTitleIcon: {
+            icons: { idle: "LEGACY", running: "LEG-RUN", ask: "LEG-ASK" },
+          },
+        }),
+      },
+    ]);
+
+    fs.mkdirSync(path.join(fixture.homeDir, ".omp", "agent", "config.yml"), { recursive: true });
+
+    try {
+      const { titles } = await withMockedHomeDir(fixture.homeDir, (registerTitleIconImpl) =>
+        expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
+      );
+
+      expect(titles).toEqual(["◆ Build Fix"]);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it("loads config from os.homedir when HOME and USERPROFILE are missing", async () => {
     const fixture = createTempHome([
       {
