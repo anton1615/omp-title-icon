@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as path from "node:path";
 
 export interface ExtensionUIContext {
@@ -29,6 +30,8 @@ interface TitlePrefixes {
   ask: string;
 }
 
+type ReadText = (filePath: string) => string | undefined;
+
 export interface TitleControllerState {
   agentRunning: boolean;
   askDepth: number;
@@ -46,6 +49,8 @@ export interface TitleScheduler {
 export interface RegisterTitleIconOptions {
   scheduler?: TitleScheduler;
   env?: Record<string, string | undefined>;
+  homeDir?: string;
+  readText?: ReadText;
 }
 
 const REASSERT_DURATION_MS = 2000;
@@ -63,6 +68,98 @@ const defaultScheduler: TitleScheduler = {
   setInterval: (callback, intervalMs) => setInterval(callback, intervalMs),
   clearInterval: handle => clearInterval(handle),
 };
+
+const CONFIG_RELATIVE_PATH = [".omp", "agent", "config.yml"] as const;
+const LEGACY_SETTINGS_RELATIVE_PATH = [".omp", "agent", "settings.json"] as const;
+
+function defaultReadText(filePath: string): string | undefined {
+  try {
+    return fs.readFileSync(filePath, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function extractConfiguredIcons(config: unknown): unknown | undefined {
+  if (!isRecord(config)) {
+    return undefined;
+  }
+
+  const extensionConfig = config.ompTitleIcon;
+  if (!isRecord(extensionConfig) || !("icons" in extensionConfig)) {
+    return undefined;
+  }
+
+  return extensionConfig.icons;
+}
+
+function normalizePrefix(value: unknown, fallback: string): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function normalizeTitlePrefixes(configuredIcons: unknown): TitlePrefixes {
+  if (!isRecord(configuredIcons)) {
+    return { ...DEFAULT_TITLE_PREFIXES };
+  }
+
+  return {
+    idle: normalizePrefix(configuredIcons.idle, DEFAULT_TITLE_PREFIXES.idle),
+    running: normalizePrefix(configuredIcons.running, DEFAULT_TITLE_PREFIXES.running),
+    ask: normalizePrefix(configuredIcons.ask, DEFAULT_TITLE_PREFIXES.ask),
+  };
+}
+
+function parseConfiguredPrefixes(text: string, format: "yaml" | "json"): TitlePrefixes | undefined {
+  try {
+    const parsed = format === "yaml" ? Bun.YAML.parse(text) : JSON.parse(text);
+    const configuredIcons = extractConfiguredIcons(parsed);
+    if (configuredIcons === undefined) {
+      return undefined;
+    }
+
+    return normalizeTitlePrefixes(configuredIcons);
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveHomeDir(
+  options: Pick<RegisterTitleIconOptions, "env" | "homeDir">,
+ ): string | undefined {
+  return (
+    options.homeDir ??
+    options.env?.HOME ??
+    options.env?.USERPROFILE ??
+    process.env.HOME ??
+    process.env.USERPROFILE
+  );
+}
+
+function loadTitlePrefixes(options: RegisterTitleIconOptions): TitlePrefixes {
+  const homeDir = resolveHomeDir(options);
+  if (!homeDir) {
+    return { ...DEFAULT_TITLE_PREFIXES };
+  }
+
+  const readText = options.readText ?? defaultReadText;
+  const configPath = path.join(homeDir, ...CONFIG_RELATIVE_PATH);
+  const configPrefixes = parseConfiguredPrefixes(readText(configPath) ?? "", "yaml");
+  if (configPrefixes) {
+    return configPrefixes;
+  }
+
+  const settingsPath = path.join(homeDir, ...LEGACY_SETTINGS_RELATIVE_PATH);
+  const legacyPrefixes = parseConfiguredPrefixes(readText(settingsPath) ?? "", "json");
+  if (legacyPrefixes) {
+    return legacyPrefixes;
+  }
+
+  return { ...DEFAULT_TITLE_PREFIXES };
+}
 
 export function shouldEnableTitlePlugin(
   env: Record<string, string | undefined> = process.env,
@@ -151,13 +248,14 @@ function applyTitle(
   pi: Pick<ExtensionAPI, "getSessionName">,
   ctx: Pick<ExtensionContext, "cwd" | "ui">,
   state: TitleControllerState,
-  options: { force?: boolean; prefixes?: TitlePrefixes } = {},
+  prefixes: TitlePrefixes,
+  options: { force?: boolean } = {},
 ): void {
   const baseTitle = computeBaseTitle(pi.getSessionName(), ctx.cwd);
   const nextTitle = renderTitleWithPrefixes(
     baseTitle,
     computeVisualState(state.agentRunning, state.askDepth),
-    options.prefixes ?? DEFAULT_TITLE_PREFIXES,
+    prefixes,
   );
 
   if (!options.force && state.lastAppliedTitle === nextTitle) {
@@ -182,11 +280,12 @@ function startReassert(
   ctx: Pick<ExtensionContext, "cwd" | "ui">,
   state: TitleControllerState,
   scheduler: TitleScheduler,
- ): void {
+  prefixes: TitlePrefixes,
+): void {
   stopReassert(state, scheduler);
   state.reassertUntil = scheduler.now() + REASSERT_DURATION_MS;
 
-  applyTitle(pi, ctx, state, { force: true });
+  applyTitle(pi, ctx, state, prefixes, { force: true });
 
   state.reassertTimer = scheduler.setInterval(() => {
     if (scheduler.now() >= state.reassertUntil) {
@@ -194,7 +293,7 @@ function startReassert(
       return;
     }
 
-    applyTitle(pi, ctx, state, { force: true });
+    applyTitle(pi, ctx, state, prefixes, { force: true });
   }, REASSERT_INTERVAL_MS);
 }
 
@@ -219,6 +318,7 @@ export default function registerTitleIcon(
     return;
   }
 
+  const prefixes = loadTitlePrefixes({ ...options, env });
   const state: TitleControllerState = {
     agentRunning: false,
     askDepth: 0,
@@ -228,7 +328,7 @@ export default function registerTitleIcon(
   };
 
   const reassert = (ctx: ExtensionContext) => {
-    startReassert(pi, ctx, state, scheduler);
+    startReassert(pi, ctx, state, scheduler, prefixes);
   };
 
   registerReassertEvent(pi, "session_start", reassert);
@@ -238,12 +338,12 @@ export default function registerTitleIcon(
 
   pi.on("agent_start", (_event: unknown, ctx: ExtensionContext) => {
     state.agentRunning = true;
-    startReassert(pi, ctx, state, scheduler);
+    startReassert(pi, ctx, state, scheduler, prefixes);
   });
 
   pi.on("agent_end", (_event: unknown, ctx: ExtensionContext) => {
     state.agentRunning = false;
-    startReassert(pi, ctx, state, scheduler);
+    startReassert(pi, ctx, state, scheduler, prefixes);
   });
 
   pi.on("tool_execution_start", (event: unknown, ctx: ExtensionContext) => {
@@ -252,7 +352,7 @@ export default function registerTitleIcon(
     }
 
     state.askDepth += 1;
-    startReassert(pi, ctx, state, scheduler);
+    startReassert(pi, ctx, state, scheduler, prefixes);
   });
 
   pi.on("tool_execution_end", (event: unknown, ctx: ExtensionContext) => {
@@ -261,7 +361,7 @@ export default function registerTitleIcon(
     }
 
     state.askDepth = Math.max(0, state.askDepth - 1);
-    startReassert(pi, ctx, state, scheduler);
+    startReassert(pi, ctx, state, scheduler, prefixes);
   });
 }
 
