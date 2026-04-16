@@ -99,9 +99,37 @@ describe("README contract", () => {
     expect(readmeText).toContain("~/.omp/agent/config.yml");
     expect(readmeText).toContain("~/.omp/agent/settings.json");
     expect(readmeText).toContain(
+      [
+        "```yaml",
+        "ompTitleIcon:",
+        "  icons:",
+        '    idle: "◆"',
+        '    running: "·"',
+        '    ask: "?!"',
+        "```",
+      ].join("\n"),
+    );
+    expect(readmeText).toContain(
+      [
+        "```json",
+        "{",
+        '  "ompTitleIcon": {',
+        '    "icons": {',
+        '      "idle": "◆",',
+        '      "running": "·",',
+        '      "ask": "?!"',
+        "    }",
+        "  }",
+        "}",
+        "```",
+      ].join("\n"),
+    );
+    expect(readmeText).toContain(
       "`~/.omp/agent/config.yml` is the primary config source. If that file does not define an `ompTitleIcon.icons` block, the extension falls back to the legacy `~/.omp/agent/settings.json` location:",
     );
-    expect(readmeText).toContain("ompTitleIcon:");
+    expect(readmeText).toContain(
+      "Once `~/.omp/agent/config.yml` defines `ompTitleIcon.icons`, the extension does not merge missing fields from the legacy `~/.omp/agent/settings.json` file. Any icon values omitted there fall back to the built-in defaults instead.",
+    );
     expect(readmeText).toContain('idle: ""');
     expect(readmeText).toContain("Set any icon to an empty string to remove the prefix for that state.");
     expect(readmeText).toContain(
