@@ -4,9 +4,9 @@ Best-effort cross-platform terminal title status extension for Oh My Pi / Pi cod
 
 It prefixes the visible terminal title with:
 
-- `●` when idle
-- `○` when running
-- `?` when the `ask` tool is waiting for input
+- `◆` when idle
+- `·` when running
+- `?!` when the `ask` tool is waiting for input
 
 ## Installation
 
@@ -63,9 +63,9 @@ bun run check
 bun --cwd <path-to-oh-my-pi>/packages/coding-agent src/cli.ts --extension <path-to-omp-title-icon>
 ```
 
-4. Start a normal prompt. While the model is responding, the title should start with `○`.
-5. Use a prompt that triggers the `ask` tool. While the question is waiting for input, the title should start with `?`.
-6. When the turn is idle again, the title should return to `●`.
+4. Start a normal prompt. While the model is responding, the title should start with `·`.
+5. Use a prompt that triggers the `ask` tool. While the question is waiting for input, the title should start with `?!`.
+6. When the turn is idle again, the title should return to `◆`.
 
 ## Troubleshooting
 

@@ -28,6 +28,8 @@ const marketplaceJson = (await Bun.file(
   }>;
 };
 
+const readmeText = await Bun.file(new URL("../README.md", import.meta.url)).text();
+
 describe("shouldEnableTitlePlugin", () => {
   it("disables dumb terminals", () => {
     expect(shouldEnableTitlePlugin({ TERM: "dumb" })).toBe(false);
@@ -88,6 +90,14 @@ describe("renderTitle", () => {
     expect(renderTitle("Build Fix", "idle")).toBe("◆ Build Fix");
     expect(renderTitle("Build Fix", "running")).toBe("· Build Fix");
     expect(renderTitle("Build Fix", "ask")).toBe("?! Build Fix");
+  });
+});
+
+describe("README contract", () => {
+  it("documents the built-in default icons", () => {
+    expect(readmeText).toContain("- `◆` when idle");
+    expect(readmeText).toContain("- `·` when running");
+    expect(readmeText).toContain("- `?!` when the `ask` tool is waiting for input");
   });
 });
 
