@@ -1,6 +1,6 @@
 # omp-title-icon
 
-Best-effort Windows Terminal title takeover for Oh My Pi / Pi coding agent sessions.
+Best-effort cross-platform terminal title status extension for Oh My Pi / Pi coding agent sessions.
 
 It prefixes the visible terminal title with:
 
@@ -36,16 +36,15 @@ Add the repo root as an explicit extension path in `.omp/settings.json`:
 
 ## Requirements
 
-- Windows Terminal
-- Windows (`process.platform === "win32"`)
-- `WT_SESSION` must be present
-- The Windows Terminal profile must not set `suppressApplicationTitle: true`
+- Interactive terminal host that supports OSC title updates
+- Best-effort support across Windows, macOS, and Linux terminal environments
+- The host terminal must allow applications to set the visible title (for example, Windows Terminal profiles must not set `suppressApplicationTitle: true`)
 
 ## What it does
 
-The extension subscribes to session, agent, and tool lifecycle events, computes the visible title from `session name -> cwd basename -> π`, and briefly force-reasserts the same title for 2 seconds after key state transitions.
+The extension subscribes to session, agent, and tool lifecycle events, computes the visible title from `session name -> cwd basename -> π`, and writes it through OSC-compatible terminal title updates while briefly force-reasserting the same title for 2 seconds after key state transitions.
 
-This is a best-effort takeover strategy. It improves title stability, but does not guarantee permanent ownership if your shell or another tool continuously rewrites the title.
+This is a best-effort takeover strategy. It improves title stability, but does not guarantee permanent ownership if your terminal ignores OSC title writes or another tool continuously rewrites the title.
 
 ## Local development
 
@@ -56,8 +55,8 @@ bun run check
 
 ## Manual verification
 
-1. Open **Windows Terminal**.
-2. Make sure the active profile does **not** set `suppressApplicationTitle: true`.
+1. Open an interactive terminal host that supports OSC title updates, such as Windows Terminal, iTerm2, or a Linux terminal emulator with application-title support.
+2. If you are using Windows Terminal, make sure the active profile does **not** set `suppressApplicationTitle: true`.
 3. Start OMP with the local extension path:
 
 ```bash
@@ -70,9 +69,9 @@ bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --e
 
 ## Troubleshooting
 
-- If the title never changes, confirm you are in **Windows Terminal**, not another terminal host.
+- If the title never changes, confirm your terminal host supports OSC title updates and allows applications to set the visible title.
 - If the title changes briefly and snaps back, check whether your shell profile or prompt module rewrites the title.
-- If the title never updates in the visible tab, check `suppressApplicationTitle` in the Windows Terminal profile.
+- If the visible tab never updates in Windows Terminal, check `suppressApplicationTitle` in the active profile.
 - If you want less competition from OMP's built-in auto-title generation, try launching with `PI_NO_TITLE=1`.
 
 ## Marketplace note

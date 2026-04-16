@@ -1,7 +1,7 @@
 {
   "name": "omp-title-icon",
   "version": "0.1.0",
-  "description": "Windows Terminal title takeover extension for Oh My Pi/Pi coding agent sessions.",
+  "description": "Cross-platform terminal title status extension for Oh My Pi / Pi coding agent sessions.",
   "type": "module",
   "main": "./src/extension.ts",
   "exports": {
@@ -22,9 +22,9 @@
     "omp-package",
     "omp-extension",
     "pi-extension",
-    "windows-terminal",
-    "title",
-    "session-title",
+    "terminal-title",
+    "macos",
+    "linux",
     "ask",
     "idle",
     "running"

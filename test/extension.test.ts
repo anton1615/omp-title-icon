@@ -11,6 +11,11 @@ import registerTitleIcon, {
   type TitleScheduler,
 } from "../src/extension";
 
+const packageJson = (await Bun.file(new URL("../package.json", import.meta.url)).json()) as {
+  description: string;
+  keywords: string[];
+};
+
 describe("shouldEnableTitlePlugin", () => {
   it("disables dumb terminals", () => {
     expect(shouldEnableTitlePlugin({ TERM: "dumb" })).toBe(false);
@@ -71,6 +76,20 @@ describe("renderTitle", () => {
     expect(renderTitle("Build Fix", "idle")).toBe("● Build Fix");
     expect(renderTitle("Build Fix", "running")).toBe("○ Build Fix");
     expect(renderTitle("Build Fix", "ask")).toBe("? Build Fix");
+  });
+});
+
+describe("package metadata", () => {
+  it("describes the extension as cross-platform", () => {
+    expect(packageJson.description).toBe(
+      "Cross-platform terminal title status extension for Oh My Pi / Pi coding agent sessions.",
+    );
+  });
+
+  it("includes cross-platform discovery keywords", () => {
+    expect(packageJson.keywords).toContain("terminal-title");
+    expect(packageJson.keywords).toContain("macos");
+    expect(packageJson.keywords).toContain("linux");
   });
 });
 
@@ -168,6 +187,31 @@ describe("registerTitleIcon", () => {
       env: { WT_SESSION: "abc" },
       scheduler: scheduler.scheduler,
     });
+
+    handlers.get("session_start")?.({ type: "session_start" }, ctx);
+    handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
+    handlers.get("tool_execution_start")?.({ type: "tool_execution_start", toolName: "ask" }, ctx);
+    handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
+    handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
+
+    expect(titles[0]).toBe("● Build Fix");
+    expect(titles[1]).toBe("○ Build Fix");
+    expect(titles[2]).toBe("? Build Fix");
+    expect(titles[3]).toBe("○ Build Fix");
+    expect(titles[4]).toBe("● Build Fix");
+  });
+
+  it("registers and drives the title lifecycle for non-Windows interactive terminals", () => {
+    const { pi, handlers } = createFakePi("Build Fix");
+    const scheduler = createFakeScheduler();
+    const { ctx, titles } = createFakeContext("/Users/anton/project");
+
+    registerTitleIcon(pi, {
+      env: { TERM_PROGRAM: "iTerm.app" },
+      scheduler: scheduler.scheduler,
+    });
+
+    expect(handlers.size).toBeGreaterThan(0);
 
     handlers.get("session_start")?.({ type: "session_start" }, ctx);
     handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
