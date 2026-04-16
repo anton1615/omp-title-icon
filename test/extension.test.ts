@@ -3,34 +3,52 @@ import registerTitleIcon, {
   applyTitle,
   computeBaseTitle,
   computeVisualState,
-  isWindowsTerminal,
   renderTitle,
+  shouldEnableTitlePlugin,
   type ExtensionAPI,
   type ExtensionContext,
   type TitleControllerState,
   type TitleScheduler,
 } from "../src/extension";
 
-describe("isWindowsTerminal", () => {
-  it("returns true only on win32 with WT_SESSION", () => {
-    expect(isWindowsTerminal("win32", { WT_SESSION: "abc" })).toBe(true);
-    expect(isWindowsTerminal("win32", {})).toBe(false);
-    expect(isWindowsTerminal("linux", { WT_SESSION: "abc" })).toBe(false);
+describe("shouldEnableTitlePlugin", () => {
+  it("disables dumb terminals", () => {
+    expect(shouldEnableTitlePlugin({ TERM: "dumb" })).toBe(false);
+  });
+
+  it("enables interactive terminal signals", () => {
+    expect(shouldEnableTitlePlugin({ WT_SESSION: "abc" })).toBe(true);
+    expect(shouldEnableTitlePlugin({ TERM_PROGRAM: "iTerm.app" })).toBe(true);
+    expect(shouldEnableTitlePlugin({ TERM: "xterm-256color" })).toBe(true);
+    expect(shouldEnableTitlePlugin({ COLORTERM: "truecolor" })).toBe(true);
+  });
+
+  it("defaults to enabled when no deny signal exists", () => {
+    expect(shouldEnableTitlePlugin({})).toBe(true);
   });
 });
 
 describe("computeBaseTitle", () => {
-  it("prefers the session name", () => {
-    expect(computeBaseTitle("Build Fix", "C:/work/project")).toBe("Build Fix");
+  it("prefers a trimmed session name over cwd", () => {
+    expect(computeBaseTitle("  Build Fix  ", "C:/work/project")).toBe("Build Fix");
+    expect(computeBaseTitle("  Build Fix  ", "/home/anton/project")).toBe("Build Fix");
   });
 
-  it("falls back to the cwd basename", () => {
-    expect(computeBaseTitle(undefined, "C:/work/project")).toBe("project");
-  });
-
-  it("falls back to π when no useful cwd exists", () => {
+  it("returns π for missing, blank, and root paths", () => {
     expect(computeBaseTitle(undefined, undefined)).toBe("π");
+    expect(computeBaseTitle(undefined, "   ")).toBe("π");
     expect(computeBaseTitle(undefined, "C:/")).toBe("π");
+    expect(computeBaseTitle(undefined, "C:\\")).toBe("π");
+    expect(computeBaseTitle(undefined, "/")).toBe("π");
+  });
+
+  it("returns the basename for Windows-style paths independent of host OS", () => {
+    expect(computeBaseTitle(undefined, "C:/work/project")).toBe("project");
+    expect(computeBaseTitle(undefined, "C:\\work\\project")).toBe("project");
+  });
+
+  it("returns the basename for POSIX-style paths independent of host OS", () => {
+    expect(computeBaseTitle(undefined, "/home/anton/project")).toBe("project");
   });
 });
 
@@ -131,11 +149,11 @@ describe("applyTitle", () => {
 });
 
 describe("registerTitleIcon", () => {
-  it("does nothing outside Windows Terminal", () => {
+  it("does nothing when capability gating disables the plugin", () => {
     const { pi, handlers } = createFakePi();
     registerTitleIcon(pi, {
       platform: "linux",
-      env: {},
+      env: { TERM: "dumb" },
       scheduler: createFakeScheduler().scheduler,
     });
 

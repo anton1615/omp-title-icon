@@ -54,28 +54,45 @@ const defaultScheduler: TitleScheduler = {
   clearInterval: handle => clearInterval(handle),
 };
 
-export function isWindowsTerminal(
-  platform: NodeJS.Platform = process.platform,
+export function shouldEnableTitlePlugin(
   env: Record<string, string | undefined> = process.env,
-): boolean {
-  return platform === "win32" && Boolean(env.WT_SESSION);
+ ): boolean {
+  if (env.TERM === "dumb") {
+    return false;
+  }
+
+  if (env.WT_SESSION || env.TERM_PROGRAM || env.TERM || env.COLORTERM) {
+    return true;
+  }
+
+  return true;
+}
+
+function selectPathModule(cwd: string): typeof path.win32 | typeof path.posix {
+  if (/^[A-Za-z]:(?:[\\/]|$)/.test(cwd) || cwd.startsWith("\\\\") || cwd.includes("\\")) {
+    return path.win32;
+  }
+
+  return path.posix;
 }
 
 export function computeBaseTitle(
   sessionName: string | undefined,
   cwd: string | undefined,
-): string {
+ ): string {
   const trimmedSessionName = sessionName?.trim();
   if (trimmedSessionName) {
     return trimmedSessionName;
   }
 
-  if (!cwd) {
+  const trimmedCwd = cwd?.trim();
+  if (!trimmedCwd) {
     return DEFAULT_FALLBACK_TITLE;
   }
 
-  const baseName = path.basename(cwd);
-  if (!baseName || baseName === path.parse(cwd).root) {
+  const pathModule = selectPathModule(trimmedCwd);
+  const baseName = pathModule.basename(trimmedCwd);
+  if (!baseName || baseName === pathModule.parse(trimmedCwd).root) {
     return DEFAULT_FALLBACK_TITLE;
   }
 
@@ -170,10 +187,9 @@ export default function registerTitleIcon(
   options: RegisterTitleIconOptions = {},
 ): void {
   const scheduler = options.scheduler ?? defaultScheduler;
-  const platform = options.platform ?? process.platform;
   const env = options.env ?? process.env;
 
-  if (!isWindowsTerminal(platform, env)) {
+  if (!shouldEnableTitlePlugin(env)) {
     return;
   }
 
