@@ -12,14 +12,14 @@ It prefixes the visible terminal title with:
 
 ### Marketplace status
 
-This repository now includes a marketplace catalog for `omp-title-icon/omp-title-icon` at `.claude-plugin/marketplace.json`, but current OMP marketplace/plugin-root loading does not execute extension modules declared only through `package.json -> omp.extensions`. In the current OMP architecture, marketplace install is prepared but not yet functional for this plugin type.
+This repository now includes a marketplace catalog for `anton1615/omp-title-icon` at `.claude-plugin/marketplace.json`, but current OMP marketplace/plugin-root loading does not execute extension modules declared only through `package.json -> omp.extensions`. In the current OMP architecture, marketplace install is prepared but not yet functional for this plugin type.
 
 Use one of the local extension loading paths below until upstream marketplace support for extension-module plugins exists.
 
 ### Local extension path
 
 ```bash
-bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --extension C:/Users/Anton/.omp/temp/omp-title-icon
+bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --extension C:/Users/Anton/.omp/agent/extensions/omp-title-icon
 ```
 
 ### Project settings
@@ -29,7 +29,7 @@ Add the repo root as an explicit extension path in `.omp/settings.json`:
 ```json
 {
   "extensions": [
-    "C:/Users/Anton/.omp/temp/omp-title-icon"
+    "C:/Users/Anton/.omp/agent/extensions/omp-title-icon"
   ]
 }
 ```
@@ -61,7 +61,7 @@ bun run check
 3. Start OMP with the local extension path:
 
 ```bash
-bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --extension C:/Users/Anton/.omp/temp/omp-title-icon
+bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --extension C:/Users/Anton/.omp/agent/extensions/omp-title-icon
 ```
 
 4. Start a normal prompt. While the model is responding, the title should start with `○`.
@@ -77,6 +77,6 @@ bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --e
 
 ## Marketplace note
 
-- Marketplace metadata for `omp-title-icon/omp-title-icon` is checked in at `.claude-plugin/marketplace.json`.
+- Marketplace metadata for `anton1615/omp-title-icon` is checked in at `.claude-plugin/marketplace.json`.
 - Current OMP marketplace/plugin-root loading does not activate extension-module plugins that rely only on `package.json -> omp.extensions`.
 - Until upstream support exists, load this plugin via `--extension` or an explicit `extensions` setting path.

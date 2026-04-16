@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "omp-title-icon",
   "owner": {
-    "name": "omp-title-icon"
+    "name": "anton1615"
   },
   "metadata": {
     "description": "Marketplace source for the omp-title-icon Windows Terminal title takeover plugin.",
@@ -15,10 +15,10 @@
       "description": "Best-effort Windows Terminal title takeover with idle/running/ask icons for OMP sessions.",
       "version": "0.1.0",
       "author": {
-        "name": "omp-title-icon"
+        "name": "anton1615"
       },
-      "homepage": "https://github.com/omp-title-icon/omp-title-icon",
-      "repository": "https://github.com/omp-title-icon/omp-title-icon",
+      "homepage": "https://github.com/anton1615/omp-title-icon",
+      "repository": "https://github.com/anton1615/omp-title-icon",
       "license": "MIT",
       "keywords": [
         "omp",

@@ -32,11 +32,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/omp-title-icon/omp-title-icon.git"
+    "url": "git+ssh://git@github.com/anton1615/omp-title-icon.git"
   },
-  "homepage": "https://github.com/omp-title-icon/omp-title-icon#readme",
+  "homepage": "https://github.com/anton1615/omp-title-icon#readme",
   "bugs": {
-    "url": "https://github.com/omp-title-icon/omp-title-icon/issues"
+    "url": "https://github.com/anton1615/omp-title-icon/issues"
   },
   "publishConfig": {
     "access": "public"
