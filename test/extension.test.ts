@@ -104,6 +104,9 @@ describe("README contract", () => {
     expect(readmeText).toContain("ompTitleIcon:");
     expect(readmeText).toContain('idle: ""');
     expect(readmeText).toContain("Set any icon to an empty string to remove the prefix for that state.");
+    expect(readmeText).toContain(
+      "The title update remains best-effort: the configured prefixes are only visible when your terminal host accepts OSC title changes and does not immediately overwrite them.",
+    );
   });
 });
 
