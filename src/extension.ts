@@ -132,7 +132,13 @@ function parseConfiguredPrefixes(
 }
 
 function resolveHomeDir(): string | undefined {
-  return process.env.HOME ?? process.env.USERPROFILE;
+  for (const candidate of [process.env.HOME, process.env.USERPROFILE]) {
+    if (candidate !== undefined && candidate !== "") {
+      return candidate;
+    }
+  }
+
+  return undefined;
 }
 
 function loadTitlePrefixes(): TitlePrefixes {
