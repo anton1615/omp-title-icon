@@ -30,8 +30,6 @@ interface TitlePrefixes {
   ask: string;
 }
 
-type ReadText = (filePath: string) => string | undefined;
-
 export interface TitleControllerState {
   agentRunning: boolean;
   askDepth: number;
@@ -49,8 +47,6 @@ export interface TitleScheduler {
 export interface RegisterTitleIconOptions {
   scheduler?: TitleScheduler;
   env?: Record<string, string | undefined>;
-  homeDir?: string;
-  readText?: ReadText;
 }
 
 const REASSERT_DURATION_MS = 2000;
@@ -136,26 +132,19 @@ function parseConfiguredPrefixes(
 }
 
 function resolveHomeDir(
-  options: Pick<RegisterTitleIconOptions, "env" | "homeDir">,
+  env: Record<string, string | undefined> | undefined,
  ): string | undefined {
-  return (
-    options.homeDir ??
-    options.env?.HOME ??
-    options.env?.USERPROFILE ??
-    process.env.HOME ??
-    process.env.USERPROFILE
-  );
+  return env?.HOME ?? env?.USERPROFILE ?? process.env.HOME ?? process.env.USERPROFILE;
 }
 
 function loadTitlePrefixes(options: RegisterTitleIconOptions): TitlePrefixes {
-  const homeDir = resolveHomeDir(options);
+  const homeDir = resolveHomeDir(options.env);
   if (!homeDir) {
     return { ...DEFAULT_TITLE_PREFIXES };
   }
 
-  const readText = options.readText ?? defaultReadText;
   const configPath = path.join(homeDir, ...CONFIG_RELATIVE_PATH);
-  const configPrefixes = parseConfiguredPrefixes(readText(configPath) ?? "", "yaml");
+  const configPrefixes = parseConfiguredPrefixes(defaultReadText(configPath) ?? "", "yaml");
   if (configPrefixes.kind === "parsed") {
     return configPrefixes.prefixes;
   }
@@ -164,7 +153,7 @@ function loadTitlePrefixes(options: RegisterTitleIconOptions): TitlePrefixes {
   }
 
   const settingsPath = path.join(homeDir, ...LEGACY_SETTINGS_RELATIVE_PATH);
-  const legacyPrefixes = parseConfiguredPrefixes(readText(settingsPath) ?? "", "json");
+  const legacyPrefixes = parseConfiguredPrefixes(defaultReadText(settingsPath) ?? "", "json");
   if (legacyPrefixes.kind === "parsed") {
     return legacyPrefixes.prefixes;
   }

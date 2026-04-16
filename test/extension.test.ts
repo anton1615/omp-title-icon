@@ -1,4 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import registerTitleIcon, {
   computeBaseTitle,
@@ -7,6 +9,7 @@ import registerTitleIcon, {
   shouldEnableTitlePlugin,
   type ExtensionAPI,
   type ExtensionContext,
+  type RegisterTitleIconOptions,
   type TitleScheduler,
 } from "../src/extension";
 import * as extensionModule from "../src/extension";
@@ -199,28 +202,39 @@ function createFakePi(sessionName: string | undefined = "Build Fix") {
 
   return { pi, handlers };
 }
-function createReadTextFixture(files: Record<string, string>) {
-  const calls: string[] = [];
+type AssertFalse<T extends false> = T;
+
+const registerTitleIconOptionsRemovesHomeDirOverride: AssertFalse<
+  "homeDir" extends keyof RegisterTitleIconOptions ? true : false
+> = false;
+
+const registerTitleIconOptionsRemovesReadTextOverride: AssertFalse<
+  "readText" extends keyof RegisterTitleIconOptions ? true : false
+> = false;
+
+void registerTitleIconOptionsRemovesHomeDirOverride;
+void registerTitleIconOptionsRemovesReadTextOverride;
+
+
+function createTempHome(files: Array<{ relativePath: string; content: string }>) {
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-title-icon-"));
+
+  for (const file of files) {
+    const filePath = path.join(homeDir, file.relativePath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, file.content, "utf8");
+  }
 
   return {
-    readText(filePath: string) {
-      calls.push(filePath);
-      return files[filePath];
+    homeDir,
+    cleanup() {
+      fs.rmSync(homeDir, { recursive: true, force: true });
     },
-    calls,
   };
 }
 
-function buildAgentConfigPath(homeDir: string) {
-  return path.join(homeDir, ".omp", "agent", "config.yml");
-}
-
-function buildLegacySettingsPath(homeDir: string) {
-  return path.join(homeDir, ".omp", "agent", "settings.json");
-}
-
 function expectLoadedIdleTitle(
-  options: Parameters<typeof registerTitleIcon>[1],
+  env: Record<string, string | undefined>,
   sessionName = "Build Fix",
 ) {
   const { pi, handlers } = createFakePi(sessionName);
@@ -228,9 +242,8 @@ function expectLoadedIdleTitle(
   const { ctx, titles } = createFakeContext();
 
   registerTitleIcon(pi, {
-    env: { WT_SESSION: "abc" },
+    env: { ...env, WT_SESSION: "abc" },
     scheduler: scheduler.scheduler,
-    ...options,
   });
 
   handlers.get("session_start")?.({ type: "session_start" }, ctx);
@@ -240,156 +253,195 @@ function expectLoadedIdleTitle(
 
 describe("config-backed title prefixes", () => {
   it("prefers config.yml icons over settings.json", () => {
-    const homeDir = "/home/tester";
-    const configPath = buildAgentConfigPath(homeDir);
-    const settingsPath = buildLegacySettingsPath(homeDir);
-    const fixture = createReadTextFixture({
-      [configPath]: [
-        "ompTitleIcon:",
-        "  icons:",
-        '    idle: "CFG"',
-        '    running: "RUN"',
-        '    ask: "ASK"',
-      ].join("\n"),
-      [settingsPath]: JSON.stringify({
-        ompTitleIcon: {
-          icons: { idle: "SET", running: "SET-RUN", ask: "SET-ASK" },
-        },
-      }),
-    });
+    const fixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: [
+          "ompTitleIcon:",
+          "  icons:",
+          '    idle: "CFG"',
+          '    running: "RUN"',
+          '    ask: "ASK"',
+        ].join("\n"),
+      },
+      {
+        relativePath: path.join(".omp", "agent", "settings.json"),
+        content: JSON.stringify({
+          ompTitleIcon: {
+            icons: { idle: "SET", running: "SET-RUN", ask: "SET-ASK" },
+          },
+        }),
+      },
+    ]);
 
-    const { titles } = expectLoadedIdleTitle({
-      homeDir,
-      readText: fixture.readText,
-    });
+    try {
+      const { titles } = expectLoadedIdleTitle({
+        HOME: fixture.homeDir,
+        USERPROFILE: fixture.homeDir,
+      });
 
-    expect(titles).toEqual(["CFG Build Fix"]);
-    expect(fixture.calls).toEqual([configPath]);
+      expect(titles).toEqual(["CFG Build Fix"]);
+    } finally {
+      fixture.cleanup();
+    }
   });
 
   it("falls back to settings.json when config.yml has no ompTitleIcon.icons block", () => {
-    const homeDir = "/home/tester";
-    const configPath = buildAgentConfigPath(homeDir);
-    const settingsPath = buildLegacySettingsPath(homeDir);
-    const fixture = createReadTextFixture({
-      [configPath]: ["other:", "  value: true"].join("\n"),
-      [settingsPath]: JSON.stringify({
-        ompTitleIcon: {
-          icons: { idle: "LEGACY", running: "LEG-RUN", ask: "LEG-ASK" },
-        },
-      }),
-    });
+    const fixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: ["other:", "  value: true"].join("\n"),
+      },
+      {
+        relativePath: path.join(".omp", "agent", "settings.json"),
+        content: JSON.stringify({
+          ompTitleIcon: {
+            icons: { idle: "LEGACY", running: "LEG-RUN", ask: "LEG-ASK" },
+          },
+        }),
+      },
+    ]);
 
-    const { titles } = expectLoadedIdleTitle({
-      homeDir,
-      readText: fixture.readText,
-    });
+    try {
+      const { titles } = expectLoadedIdleTitle({
+        HOME: fixture.homeDir,
+        USERPROFILE: fixture.homeDir,
+      });
 
-    expect(titles).toEqual(["LEGACY Build Fix"]);
-    expect(fixture.calls).toEqual([configPath, settingsPath]);
+      expect(titles).toEqual(["LEGACY Build Fix"]);
+    } finally {
+      fixture.cleanup();
+    }
   });
 
   it("falls back per field for invalid values while preserving empty strings", () => {
-    const homeDir = "/home/tester";
-    const fixture = createReadTextFixture({
-      [buildAgentConfigPath(homeDir)]: [
-        "ompTitleIcon:",
-        "  icons:",
-        '    idle: ""',
-        "    running: 123",
-        '    ask: "ASK"',
-      ].join("\n"),
-    });
+    const fixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: [
+          "ompTitleIcon:",
+          "  icons:",
+          '    idle: ""',
+          "    running: 123",
+          '    ask: "ASK"',
+        ].join("\n"),
+      },
+    ]);
     const { pi, handlers } = createFakePi("Build Fix");
     const scheduler = createFakeScheduler();
     const { ctx, titles } = createFakeContext();
 
-    registerTitleIcon(pi, {
-      env: { WT_SESSION: "abc" },
-      scheduler: scheduler.scheduler,
-      homeDir,
-      readText: fixture.readText,
-    });
+    try {
+      registerTitleIcon(pi, {
+        env: {
+          HOME: fixture.homeDir,
+          USERPROFILE: fixture.homeDir,
+          WT_SESSION: "abc",
+        },
+        scheduler: scheduler.scheduler,
+      });
 
-    handlers.get("session_start")?.({ type: "session_start" }, ctx);
-    handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
-    handlers.get("tool_execution_start")?.({ type: "tool_execution_start", toolName: "ask" }, ctx);
+      handlers.get("session_start")?.({ type: "session_start" }, ctx);
+      handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
+      handlers.get("tool_execution_start")?.({ type: "tool_execution_start", toolName: "ask" }, ctx);
 
-    expect(titles).toEqual(["Build Fix", "· Build Fix", "ASK Build Fix"]);
+      expect(titles).toEqual(["Build Fix", "· Build Fix", "ASK Build Fix"]);
+    } finally {
+      fixture.cleanup();
+    }
   });
 
   it("ignores settings.json when config.yml is malformed", () => {
-    const homeDir = "/home/tester";
-    const configPath = buildAgentConfigPath(homeDir);
-    const settingsPath = buildLegacySettingsPath(homeDir);
-    const fixture = createReadTextFixture({
-      [configPath]: "ompTitleIcon: [unterminated",
-      [settingsPath]: JSON.stringify({
-        ompTitleIcon: {
-          icons: { idle: "LEGACY", running: "LEG-RUN", ask: "LEG-ASK" },
-        },
-      }),
-    });
+    const fixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: "ompTitleIcon: [unterminated",
+      },
+      {
+        relativePath: path.join(".omp", "agent", "settings.json"),
+        content: JSON.stringify({
+          ompTitleIcon: {
+            icons: { idle: "LEGACY", running: "LEG-RUN", ask: "LEG-ASK" },
+          },
+        }),
+      },
+    ]);
 
-    const { titles } = expectLoadedIdleTitle({
-      homeDir,
-      readText: fixture.readText,
-    });
+    try {
+      const { titles } = expectLoadedIdleTitle({
+        HOME: fixture.homeDir,
+        USERPROFILE: fixture.homeDir,
+      });
 
-    expect(titles).toEqual(["◆ Build Fix"]);
-    expect(fixture.calls).toEqual([configPath]);
+      expect(titles).toEqual(["◆ Build Fix"]);
+    } finally {
+      fixture.cleanup();
+    }
   });
 
-
   it("falls back safely when config parsing fails", () => {
-    const homeDir = "/home/tester";
-    const fixture = createReadTextFixture({
-      [buildAgentConfigPath(homeDir)]: "ompTitleIcon: [unterminated",
-    });
+    const fixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: "ompTitleIcon: [unterminated",
+      },
+    ]);
 
-    const { titles } = expectLoadedIdleTitle({
-      homeDir,
-      readText: fixture.readText,
-    });
+    try {
+      const { titles } = expectLoadedIdleTitle({
+        HOME: fixture.homeDir,
+        USERPROFILE: fixture.homeDir,
+      });
 
-    expect(titles).toEqual(["◆ Build Fix"]);
+      expect(titles).toEqual(["◆ Build Fix"]);
+    } finally {
+      fixture.cleanup();
+    }
   });
 
   it("uses loaded config.yml prefixes across the lifecycle", () => {
-    const homeDir = "/home/tester";
-    const fixture = createReadTextFixture({
-      [buildAgentConfigPath(homeDir)]: [
-        "ompTitleIcon:",
-        "  icons:",
-        '    idle: ""',
-        '    running: "RUN"',
-        '    ask: "ASK"',
-      ].join("\n"),
-    });
+    const fixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: [
+          "ompTitleIcon:",
+          "  icons:",
+          '    idle: ""',
+          '    running: "RUN"',
+          '    ask: "ASK"',
+        ].join("\n"),
+      },
+    ]);
     const { pi, handlers } = createFakePi("Build Fix");
     const scheduler = createFakeScheduler();
     const { ctx, titles } = createFakeContext();
 
-    registerTitleIcon(pi, {
-      env: { WT_SESSION: "abc" },
-      scheduler: scheduler.scheduler,
-      homeDir,
-      readText: fixture.readText,
-    });
+    try {
+      registerTitleIcon(pi, {
+        env: {
+          HOME: fixture.homeDir,
+          USERPROFILE: fixture.homeDir,
+          WT_SESSION: "abc",
+        },
+        scheduler: scheduler.scheduler,
+      });
 
-    handlers.get("session_start")?.({ type: "session_start" }, ctx);
-    handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
-    handlers.get("tool_execution_start")?.({ type: "tool_execution_start", toolName: "ask" }, ctx);
-    handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
-    handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
+      handlers.get("session_start")?.({ type: "session_start" }, ctx);
+      handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
+      handlers.get("tool_execution_start")?.({ type: "tool_execution_start", toolName: "ask" }, ctx);
+      handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
+      handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
 
-    expect(titles).toEqual([
-      "Build Fix",
-      "RUN Build Fix",
-      "ASK Build Fix",
-      "RUN Build Fix",
-      "Build Fix",
-    ]);
+      expect(titles).toEqual([
+        "Build Fix",
+        "RUN Build Fix",
+        "ASK Build Fix",
+        "RUN Build Fix",
+        "Build Fix",
+      ]);
+    } finally {
+      fixture.cleanup();
+    }
   });
 });
 
