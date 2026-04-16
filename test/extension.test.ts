@@ -318,6 +318,29 @@ describe("config-backed title prefixes", () => {
     expect(titles).toEqual(["Build Fix", "· Build Fix", "ASK Build Fix"]);
   });
 
+  it("ignores settings.json when config.yml is malformed", () => {
+    const homeDir = "/home/tester";
+    const configPath = buildAgentConfigPath(homeDir);
+    const settingsPath = buildLegacySettingsPath(homeDir);
+    const fixture = createReadTextFixture({
+      [configPath]: "ompTitleIcon: [unterminated",
+      [settingsPath]: JSON.stringify({
+        ompTitleIcon: {
+          icons: { idle: "LEGACY", running: "LEG-RUN", ask: "LEG-ASK" },
+        },
+      }),
+    });
+
+    const { titles } = expectLoadedIdleTitle({
+      homeDir,
+      readText: fixture.readText,
+    });
+
+    expect(titles).toEqual(["◆ Build Fix"]);
+    expect(fixture.calls).toEqual([configPath]);
+  });
+
+
   it("falls back safely when config parsing fails", () => {
     const homeDir = "/home/tester";
     const fixture = createReadTextFixture({

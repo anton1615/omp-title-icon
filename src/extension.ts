@@ -113,17 +113,25 @@ function normalizeTitlePrefixes(configuredIcons: unknown): TitlePrefixes {
   };
 }
 
-function parseConfiguredPrefixes(text: string, format: "yaml" | "json"): TitlePrefixes | undefined {
+type ParsedPrefixesResult =
+  | { kind: "parsed"; prefixes: TitlePrefixes }
+  | { kind: "missing-icons" }
+  | { kind: "parse-error" };
+
+function parseConfiguredPrefixes(
+  text: string,
+  format: "yaml" | "json",
+): ParsedPrefixesResult {
   try {
     const parsed = format === "yaml" ? Bun.YAML.parse(text) : JSON.parse(text);
     const configuredIcons = extractConfiguredIcons(parsed);
     if (configuredIcons === undefined) {
-      return undefined;
+      return { kind: "missing-icons" };
     }
 
-    return normalizeTitlePrefixes(configuredIcons);
+    return { kind: "parsed", prefixes: normalizeTitlePrefixes(configuredIcons) };
   } catch {
-    return undefined;
+    return { kind: "parse-error" };
   }
 }
 
@@ -148,14 +156,17 @@ function loadTitlePrefixes(options: RegisterTitleIconOptions): TitlePrefixes {
   const readText = options.readText ?? defaultReadText;
   const configPath = path.join(homeDir, ...CONFIG_RELATIVE_PATH);
   const configPrefixes = parseConfiguredPrefixes(readText(configPath) ?? "", "yaml");
-  if (configPrefixes) {
-    return configPrefixes;
+  if (configPrefixes.kind === "parsed") {
+    return configPrefixes.prefixes;
+  }
+  if (configPrefixes.kind === "parse-error") {
+    return { ...DEFAULT_TITLE_PREFIXES };
   }
 
   const settingsPath = path.join(homeDir, ...LEGACY_SETTINGS_RELATIVE_PATH);
   const legacyPrefixes = parseConfiguredPrefixes(readText(settingsPath) ?? "", "json");
-  if (legacyPrefixes) {
-    return legacyPrefixes;
+  if (legacyPrefixes.kind === "parsed") {
+    return legacyPrefixes.prefixes;
   }
 
   return { ...DEFAULT_TITLE_PREFIXES };
