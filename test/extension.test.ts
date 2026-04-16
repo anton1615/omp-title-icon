@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -273,16 +273,23 @@ function withProcessHome<T>(homeDir: string, run: () => T): T {
   return withProcessEnv({ HOME: homeDir, USERPROFILE: homeDir }, run);
 }
 
-function expectLoadedIdleTitle(sessionName = "Build Fix") {
+function expectLoadedIdleTitle(
+  sessionName = "Build Fix",
+  registerTitleIconImpl: typeof registerTitleIcon = registerTitleIcon,
+) {
   const { pi, handlers } = createFakePi(sessionName);
   const scheduler = createFakeScheduler();
   const { ctx, titles } = createFakeContext();
 
-  withProcessEnv({ WT_SESSION: "abc" }, () => {
-    registerTitleIcon(pi, {
-      scheduler: scheduler.scheduler,
-    });
-  }, ["TERM"]);
+  withProcessEnv(
+    { WT_SESSION: "abc" },
+    () => {
+      registerTitleIconImpl(pi, {
+        scheduler: scheduler.scheduler,
+      });
+    },
+    ["TERM"],
+  );
 
   handlers.get("session_start")?.({ type: "session_start" }, ctx);
 
@@ -399,6 +406,39 @@ describe("config-backed title prefixes", () => {
     } finally {
       userProfileFixture.cleanup();
       unusableHomeFixture.cleanup();
+    }
+  });
+
+  it("falls back to os.homedir when HOME and USERPROFILE are missing", async () => {
+    const fixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: [
+          "ompTitleIcon:",
+          "  icons:",
+          '    idle: "OS"',
+          '    running: "RUN"',
+          '    ask: "ASK"',
+        ].join("\n"),
+      },
+    ]);
+
+    try {
+      mock.module("node:os", () => ({
+        ...os,
+        homedir: () => fixture.homeDir,
+      }));
+      const freshExtension = await import(`../src/extension.ts?os-home-${Date.now()}`);
+      const { titles } = withProcessEnv(
+        {},
+        () => expectLoadedIdleTitle("Build Fix", freshExtension.default),
+        ["HOME", "USERPROFILE"],
+      );
+
+      expect(titles).toEqual(["OS Build Fix"]);
+    } finally {
+      mock.restore();
+      fixture.cleanup();
     }
   });
 

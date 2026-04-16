@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 export interface ExtensionUIContext {
@@ -133,7 +134,7 @@ function parseConfiguredPrefixes(
 function resolveHomeDirs(): string[] {
   const homeDirs: string[] = [];
 
-  for (const candidate of [process.env.HOME, process.env.USERPROFILE]) {
+  for (const candidate of [process.env.HOME, process.env.USERPROFILE, os.homedir()]) {
     if (candidate === undefined || candidate === "" || homeDirs.includes(candidate)) {
       continue;
     }
