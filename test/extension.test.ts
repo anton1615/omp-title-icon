@@ -93,9 +93,9 @@ describe("renderTitle", () => {
 });
 
 describe("package metadata", () => {
-  it("describes the extension as cross-platform", () => {
+  it("describes the extension as best-effort cross-platform", () => {
     expect(packageJson.description).toBe(
-      "Cross-platform terminal title status extension for Oh My Pi / Pi coding agent sessions.",
+      "Best-effort cross-platform terminal title status extension for Oh My Pi / Pi coding agent sessions.",
     );
   });
 

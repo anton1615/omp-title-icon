@@ -1,7 +1,7 @@
 {
   "name": "omp-title-icon",
   "version": "0.1.0",
-  "description": "Cross-platform terminal title status extension for Oh My Pi / Pi coding agent sessions.",
+  "description": "Best-effort cross-platform terminal title status extension for Oh My Pi / Pi coding agent sessions.",
   "type": "module",
   "main": "./src/extension.ts",
   "exports": {
