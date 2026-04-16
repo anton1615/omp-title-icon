@@ -37,6 +37,24 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function extractReadmeSection(markdown: string, heading: string) {
+  const match = markdown.match(
+    new RegExp(
+      `^## ${escapeRegExp(heading)}\\s*$([\\s\\S]*?)(?=^## |\\Z)`,
+      "m",
+    ),
+  );
+
+  expect(match?.[1]).toBeDefined();
+  return match?.[1] ?? "";
+}
+
+function extractReadmeFencedBlocks(markdown: string, lang: "yaml" | "json") {
+  return [...markdown.matchAll(new RegExp("```" + lang + "\\s*([\\s\\S]*?)```", "g"))].map(
+    (match) => match[1] ?? "",
+  );
+}
+
 function expectReadmeToContain(pattern: RegExp) {
   expect(readmeText).toMatch(pattern);
 }
@@ -46,10 +64,12 @@ function expectReadmeToMentionStateIcon(state: "idle" | "running" | "ask", icon:
   expectReadmeToContain(new RegExp(`(?:${escapedIcon}[\\s\\S]{0,120}${state}|${state}[\\s\\S]{0,120}${escapedIcon})`, "i"));
 }
 
-function expectReadmeToContainFencedBlock(lang: "yaml" | "json", requiredPatterns: RegExp[]) {
-  const blocks = [...readmeText.matchAll(new RegExp("```" + lang + "\\s*([\\s\\S]*?)```", "g"))].map(
-    (match) => match[1] ?? "",
-  );
+function expectReadmeSectionToContainFencedBlock(
+  sectionText: string,
+  lang: "yaml" | "json",
+  requiredPatterns: RegExp[],
+) {
+  const blocks = extractReadmeFencedBlocks(sectionText, lang);
 
   expect(blocks.length).toBeGreaterThan(0);
   expect(blocks.some((block) => requiredPatterns.every((pattern) => pattern.test(block)))).toBe(true);
@@ -118,42 +138,45 @@ describe("README contract", () => {
   });
 
   it("documents config-based user overrides semantically", () => {
-    expectReadmeToContain(/~\/.omp\/agent\/config\.yml/);
-    expectReadmeToContain(/~\/.omp\/agent\/settings\.json/);
-    expectReadmeToContainFencedBlock("yaml", [
+    const userOverridesSection = extractReadmeSection(readmeText, "User overrides");
+    const manualVerificationSection = extractReadmeSection(readmeText, "Manual verification");
+
+    expect(userOverridesSection).toContain("~/.omp/agent/config.yml");
+    expect(userOverridesSection).toContain("~/.omp/agent/settings.json");
+    expectReadmeSectionToContainFencedBlock(userOverridesSection, "yaml", [
       /ompTitleIcon\s*:/,
       /icons\s*:/,
       /idle\s*:\s*"◆"/,
       /running\s*:\s*"·"/,
       /ask\s*:\s*"\?!"/,
     ]);
-    expectReadmeToContainFencedBlock("json", [
+    expectReadmeSectionToContainFencedBlock(userOverridesSection, "json", [
       /"ompTitleIcon"\s*:/,
       /"icons"\s*:/,
       /"idle"\s*:\s*"◆"/,
       /"running"\s*:\s*"·"/,
       /"ask"\s*:\s*"\?!"/,
     ]);
-    expectReadmeToContain(
-      /config\.yml[\s\S]{0,120}primary config source[\s\S]{0,200}does not define[\s\S]{0,120}ompTitleIcon\.icons[\s\S]{0,200}falls back[\s\S]{0,120}settings\.json/i,
+    expect(userOverridesSection).toMatch(
+      /primary config source[\s\S]*falls back to the legacy `~\/.omp\/agent\/settings\.json` location/i,
     );
-    expectReadmeToContain(
-      /Once[\s\S]{0,120}config\.yml[\s\S]{0,120}defines[\s\S]{0,120}ompTitleIcon\.icons[\s\S]{0,200}does not merge[\s\S]{0,160}settings\.json[\s\S]{0,200}omitted[\s\S]{0,120}built-in defaults/i,
+    expect(userOverridesSection).toMatch(
+      /does not merge missing fields from the legacy `~\/.omp\/agent\/settings\.json` file[\s\S]*built-in defaults/i,
     );
-    expectReadmeToContainFencedBlock("yaml", [
+    expectReadmeSectionToContainFencedBlock(userOverridesSection, "yaml", [
       /ompTitleIcon\s*:/,
       /icons\s*:/,
       /idle\s*:\s*""/,
       /running\s*:\s*"·"/,
       /ask\s*:\s*"\?!"/,
     ]);
-    expectReadmeToContain(/empty string[\s\S]{0,120}remove the prefix/i);
-    expectReadmeToContain(
-      /best-effort[\s\S]{0,160}configured prefixes[\s\S]{0,200}OSC title changes[\s\S]{0,200}overwrite/i,
+    expect(userOverridesSection).toMatch(/empty string to remove the prefix/i);
+    expect(userOverridesSection).toMatch(
+      /best-effort[\s\S]*configured prefixes[\s\S]*OSC title changes[\s\S]*overwrite/i,
     );
-    expectReadmeToContain(/normal[\s\S]{0,40}prompt[\s\S]{0,240}configured running prefix/i);
-    expectReadmeToContain(/ask[\s\S]{0,40}tool[\s\S]{0,240}configured ask prefix/i);
-    expectReadmeToContain(/idle again[\s\S]{0,240}configured idle prefix/i);
+    expect(manualVerificationSection).toContain("configured running prefix");
+    expect(manualVerificationSection).toContain("configured ask prefix");
+    expect(manualVerificationSection).toContain("configured idle prefix");
   });
 });
 
