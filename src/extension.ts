@@ -131,14 +131,12 @@ function parseConfiguredPrefixes(
   }
 }
 
-function resolveHomeDir(
-  env: Record<string, string | undefined> | undefined,
- ): string | undefined {
-  return env?.HOME ?? env?.USERPROFILE ?? process.env.HOME ?? process.env.USERPROFILE;
+function resolveHomeDir(): string | undefined {
+  return process.env.HOME ?? process.env.USERPROFILE;
 }
 
-function loadTitlePrefixes(options: RegisterTitleIconOptions): TitlePrefixes {
-  const homeDir = resolveHomeDir(options.env);
+function loadTitlePrefixes(): TitlePrefixes {
+  const homeDir = resolveHomeDir();
   if (!homeDir) {
     return { ...DEFAULT_TITLE_PREFIXES };
   }
@@ -318,7 +316,7 @@ export default function registerTitleIcon(
     return;
   }
 
-  const prefixes = loadTitlePrefixes({ ...options, env });
+  const prefixes = loadTitlePrefixes();
   const state: TitleControllerState = {
     agentRunning: false,
     askDepth: 0,

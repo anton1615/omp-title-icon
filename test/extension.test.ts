@@ -233,6 +233,30 @@ function createTempHome(files: Array<{ relativePath: string; content: string }>)
   };
 }
 
+function withProcessHome<T>(homeDir: string, run: () => T): T {
+  const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
+
+  process.env.HOME = homeDir;
+  process.env.USERPROFILE = homeDir;
+
+  try {
+    return run();
+  } finally {
+    if (previousHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = previousHome;
+    }
+
+    if (previousUserProfile === undefined) {
+      delete process.env.USERPROFILE;
+    } else {
+      process.env.USERPROFILE = previousUserProfile;
+    }
+  }
+}
+
 function expectLoadedIdleTitle(
   env: Record<string, string | undefined>,
   sessionName = "Build Fix",
@@ -275,10 +299,7 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      const { titles } = expectLoadedIdleTitle({
-        HOME: fixture.homeDir,
-        USERPROFILE: fixture.homeDir,
-      });
+      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle({}));
 
       expect(titles).toEqual(["CFG Build Fix"]);
     } finally {
@@ -286,6 +307,47 @@ describe("config-backed title prefixes", () => {
     }
   });
 
+
+  it("ignores injected env home overrides when loading config", () => {
+    const realFixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: [
+          "ompTitleIcon:",
+          "  icons:",
+          '    idle: "REAL"',
+          '    running: "RUN"',
+          '    ask: "ASK"',
+        ].join("\n"),
+      },
+    ]);
+    const injectedFixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: [
+          "ompTitleIcon:",
+          "  icons:",
+          '    idle: "INJECTED"',
+          '    running: "RUN"',
+          '    ask: "ASK"',
+        ].join("\n"),
+      },
+    ]);
+
+    try {
+      const { titles } = withProcessHome(realFixture.homeDir, () =>
+        expectLoadedIdleTitle({
+          HOME: injectedFixture.homeDir,
+          USERPROFILE: injectedFixture.homeDir,
+        }),
+      );
+
+      expect(titles).toEqual(["REAL Build Fix"]);
+    } finally {
+      realFixture.cleanup();
+      injectedFixture.cleanup();
+    }
+  });
   it("falls back to settings.json when config.yml has no ompTitleIcon.icons block", () => {
     const fixture = createTempHome([
       {
@@ -303,10 +365,7 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      const { titles } = expectLoadedIdleTitle({
-        HOME: fixture.homeDir,
-        USERPROFILE: fixture.homeDir,
-      });
+      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle({}));
 
       expect(titles).toEqual(["LEGACY Build Fix"]);
     } finally {
@@ -332,18 +391,16 @@ describe("config-backed title prefixes", () => {
     const { ctx, titles } = createFakeContext();
 
     try {
-      registerTitleIcon(pi, {
-        env: {
-          HOME: fixture.homeDir,
-          USERPROFILE: fixture.homeDir,
-          WT_SESSION: "abc",
-        },
-        scheduler: scheduler.scheduler,
-      });
+      withProcessHome(fixture.homeDir, () => {
+        registerTitleIcon(pi, {
+          env: { WT_SESSION: "abc" },
+          scheduler: scheduler.scheduler,
+        });
 
-      handlers.get("session_start")?.({ type: "session_start" }, ctx);
-      handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
-      handlers.get("tool_execution_start")?.({ type: "tool_execution_start", toolName: "ask" }, ctx);
+        handlers.get("session_start")?.({ type: "session_start" }, ctx);
+        handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
+        handlers.get("tool_execution_start")?.({ type: "tool_execution_start", toolName: "ask" }, ctx);
+      });
 
       expect(titles).toEqual(["Build Fix", "· Build Fix", "ASK Build Fix"]);
     } finally {
@@ -368,10 +425,7 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      const { titles } = expectLoadedIdleTitle({
-        HOME: fixture.homeDir,
-        USERPROFILE: fixture.homeDir,
-      });
+      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle({}));
 
       expect(titles).toEqual(["◆ Build Fix"]);
     } finally {
@@ -388,10 +442,7 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      const { titles } = expectLoadedIdleTitle({
-        HOME: fixture.homeDir,
-        USERPROFILE: fixture.homeDir,
-      });
+      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle({}));
 
       expect(titles).toEqual(["◆ Build Fix"]);
     } finally {
@@ -417,20 +468,18 @@ describe("config-backed title prefixes", () => {
     const { ctx, titles } = createFakeContext();
 
     try {
-      registerTitleIcon(pi, {
-        env: {
-          HOME: fixture.homeDir,
-          USERPROFILE: fixture.homeDir,
-          WT_SESSION: "abc",
-        },
-        scheduler: scheduler.scheduler,
-      });
+      withProcessHome(fixture.homeDir, () => {
+        registerTitleIcon(pi, {
+          env: { WT_SESSION: "abc" },
+          scheduler: scheduler.scheduler,
+        });
 
-      handlers.get("session_start")?.({ type: "session_start" }, ctx);
-      handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
-      handlers.get("tool_execution_start")?.({ type: "tool_execution_start", toolName: "ask" }, ctx);
-      handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
-      handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
+        handlers.get("session_start")?.({ type: "session_start" }, ctx);
+        handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
+        handlers.get("tool_execution_start")?.({ type: "tool_execution_start", toolName: "ask" }, ctx);
+        handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
+        handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
+      });
 
       expect(titles).toEqual([
         "Build Fix",
