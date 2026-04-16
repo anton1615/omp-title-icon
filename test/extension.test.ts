@@ -40,10 +40,17 @@ function escapeRegExp(value: string) {
 function extractReadmeSection(markdown: string, heading: string) {
   const match = markdown.match(
     new RegExp(
-      `^## ${escapeRegExp(heading)}\\s*$([\\s\\S]*?)(?=^## |\\Z)`,
+      `^## ${escapeRegExp(heading)}\\s*$([\\s\\S]*?)(?=^## |(?![\\s\\S]))`,
       "m",
     ),
   );
+
+  expect(match?.[1]).toBeDefined();
+  return match?.[1] ?? "";
+}
+
+function extractReadmeIntro(markdown: string) {
+  const match = markdown.match(/^# .*$(?:\r?\n)?([\s\S]*?)(?=^## |(?![\s\S]))/m);
 
   expect(match?.[1]).toBeDefined();
   return match?.[1] ?? "";
@@ -55,13 +62,15 @@ function extractReadmeFencedBlocks(markdown: string, lang: "yaml" | "json") {
   );
 }
 
-function expectReadmeToContain(pattern: RegExp) {
-  expect(readmeText).toMatch(pattern);
-}
-
-function expectReadmeToMentionStateIcon(state: "idle" | "running" | "ask", icon: string) {
+function expectReadmeSectionToMentionStateIcon(
+  sectionText: string,
+  state: "idle" | "running" | "ask",
+  icon: string,
+ ) {
   const escapedIcon = escapeRegExp(icon);
-  expectReadmeToContain(new RegExp(`(?:${escapedIcon}[\\s\\S]{0,120}${state}|${state}[\\s\\S]{0,120}${escapedIcon})`, "i"));
+  expect(sectionText).toMatch(
+    new RegExp(`(?:${escapedIcon}[\\s\\S]{0,120}${state}|${state}[\\s\\S]{0,120}${escapedIcon})`, "i"),
+  );
 }
 
 function expectReadmeSectionToContainFencedBlock(
@@ -132,9 +141,11 @@ describe("computeVisualState", () => {
 
 describe("README contract", () => {
   it("documents the built-in default icons", () => {
-    expectReadmeToMentionStateIcon("idle", "◆");
-    expectReadmeToMentionStateIcon("running", "·");
-    expectReadmeToContain(/(?:ask tool|ask prefix|ask)[\s\S]{0,120}\?!|\?![\s\S]{0,120}(?:ask tool|ask prefix|ask)/i);
+    const introSection = extractReadmeIntro(readmeText);
+
+    expectReadmeSectionToMentionStateIcon(introSection, "idle", "◆");
+    expectReadmeSectionToMentionStateIcon(introSection, "running", "·");
+    expect(introSection).toMatch(/(?:ask tool|ask prefix|ask)[\s\S]{0,120}\?!|\?![\s\S]{0,120}(?:ask tool|ask prefix|ask)/i);
   });
 
   it("documents config-based user overrides semantically", () => {
