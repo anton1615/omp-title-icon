@@ -98,6 +98,9 @@ describe("README contract", () => {
   it("documents config-based user overrides", () => {
     expect(readmeText).toContain("~/.omp/agent/config.yml");
     expect(readmeText).toContain("~/.omp/agent/settings.json");
+    expect(readmeText).toContain(
+      "`~/.omp/agent/config.yml` is the primary config source. If that file does not define an `ompTitleIcon.icons` block, the extension falls back to the legacy `~/.omp/agent/settings.json` location:",
+    );
     expect(readmeText).toContain("ompTitleIcon:");
     expect(readmeText).toContain('idle: ""');
     expect(readmeText).toContain("Set any icon to an empty string to remove the prefix for that state.");
