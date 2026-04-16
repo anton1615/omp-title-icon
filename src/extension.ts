@@ -154,7 +154,7 @@ function loadTitlePrefixesFromHome(homeDir: string): TitlePrefixes | undefined {
       return configPrefixes.prefixes;
     }
     if (configPrefixes.kind === "parse-error") {
-      return { ...DEFAULT_TITLE_PREFIXES };
+      return undefined;
     }
   }
 
@@ -164,6 +164,9 @@ function loadTitlePrefixesFromHome(homeDir: string): TitlePrefixes | undefined {
     const legacyPrefixes = parseConfiguredPrefixes(settingsText, "json");
     if (legacyPrefixes.kind === "parsed") {
       return legacyPrefixes.prefixes;
+    }
+    if (legacyPrefixes.kind === "parse-error") {
+      return undefined;
     }
 
     return { ...DEFAULT_TITLE_PREFIXES };

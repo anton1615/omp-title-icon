@@ -409,6 +409,43 @@ describe("config-backed title prefixes", () => {
     }
   });
 
+  it("falls back to USERPROFILE when HOME config.yml is malformed", () => {
+    const userProfileFixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: [
+          "ompTitleIcon:",
+          "  icons:",
+          '    idle: "USR"',
+          '    running: "RUN"',
+          '    ask: "ASK"',
+        ].join("\n"),
+      },
+    ]);
+    const malformedHomeFixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: "ompTitleIcon: [unterminated",
+      },
+    ]);
+
+    try {
+      const { titles } = withProcessEnv(
+        {
+          WT_SESSION: "abc",
+          HOME: malformedHomeFixture.homeDir,
+          USERPROFILE: userProfileFixture.homeDir,
+        },
+        () => expectLoadedIdleTitle(),
+      );
+
+      expect(titles).toEqual(["USR Build Fix"]);
+    } finally {
+      userProfileFixture.cleanup();
+      malformedHomeFixture.cleanup();
+    }
+  });
+
   it("falls back to os.homedir when HOME and USERPROFILE are missing", async () => {
     const fixture = createTempHome([
       {
