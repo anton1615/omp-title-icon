@@ -16,6 +16,19 @@ const packageJson = (await Bun.file(new URL("../package.json", import.meta.url))
   keywords: string[];
 };
 
+const marketplaceJson = (await Bun.file(
+  new URL("../.claude-plugin/marketplace.json", import.meta.url),
+).json()) as {
+  metadata: {
+    description: string;
+  };
+  plugins: Array<{
+    description: string;
+    keywords: string[];
+    tags: string[];
+  }>;
+};
+
 describe("shouldEnableTitlePlugin", () => {
   it("disables dumb terminals", () => {
     expect(shouldEnableTitlePlugin({ TERM: "dumb" })).toBe(false);
@@ -90,6 +103,30 @@ describe("package metadata", () => {
     expect(packageJson.keywords).toContain("terminal-title");
     expect(packageJson.keywords).toContain("macos");
     expect(packageJson.keywords).toContain("linux");
+  });
+
+});
+
+describe("marketplace metadata", () => {
+  it("describes the marketplace source as cross-platform", () => {
+    expect(marketplaceJson.metadata.description).toBe(
+      "Marketplace source for the omp-title-icon best-effort cross-platform terminal title plugin.",
+    );
+  });
+
+  it("describes the plugin as best-effort cross-platform", () => {
+    expect(marketplaceJson.plugins[0]?.description).toBe(
+      "Best-effort cross-platform terminal title status extension with idle/running/ask icons for OMP sessions.",
+    );
+  });
+
+  it("includes cross-platform discovery keywords and tags", () => {
+    expect(marketplaceJson.plugins[0]?.keywords).toEqual(
+      expect.arrayContaining(["terminal-title", "cross-platform", "macos", "linux"]),
+    );
+    expect(marketplaceJson.plugins[0]?.tags).toEqual(
+      expect.arrayContaining(["cross-platform", "terminal", "best-effort"]),
+    );
   });
 });
 
@@ -201,7 +238,7 @@ describe("registerTitleIcon", () => {
     expect(titles[4]).toBe("● Build Fix");
   });
 
-  it("registers and drives the title lifecycle for non-Windows interactive terminals", () => {
+  it("registers and drives the title lifecycle when TERM_PROGRAM enables the plugin", () => {
     const { pi, handlers } = createFakePi("Build Fix");
     const scheduler = createFakeScheduler();
     const { ctx, titles } = createFakeContext("/Users/anton/project");

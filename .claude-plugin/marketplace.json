@@ -5,14 +5,14 @@
     "name": "anton1615"
   },
   "metadata": {
-    "description": "Marketplace source for the omp-title-icon Windows Terminal title takeover plugin.",
+    "description": "Marketplace source for the omp-title-icon best-effort cross-platform terminal title plugin.",
     "version": "0.1.0"
   },
   "plugins": [
     {
       "name": "omp-title-icon",
       "source": "./",
-      "description": "Best-effort Windows Terminal title takeover with idle/running/ask icons for OMP sessions.",
+      "description": "Best-effort cross-platform terminal title status extension with idle/running/ask icons for OMP sessions.",
       "version": "0.1.0",
       "author": {
         "name": "anton1615"
@@ -22,19 +22,21 @@
       "license": "MIT",
       "keywords": [
         "omp",
+        "terminal-title",
+        "cross-platform",
+        "macos",
+        "linux",
         "windows-terminal",
-        "title",
-        "session",
+        "ask",
         "idle",
-        "running",
-        "ask"
+        "running"
       ],
       "category": "productivity",
       "tags": [
-        "windows",
+        "cross-platform",
         "terminal",
         "title",
-        "extension"
+        "best-effort"
       ]
     }
   ]

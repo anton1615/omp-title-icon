@@ -19,17 +19,17 @@ Use one of the local extension loading paths below until upstream marketplace su
 ### Local extension path
 
 ```bash
-bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --extension C:/Users/Anton/.omp/agent/extensions/omp-title-icon
+bun --cwd <path-to-oh-my-pi>/packages/coding-agent src/cli.ts --extension <path-to-omp-title-icon>
 ```
 
 ### Project settings
 
-Add the repo root as an explicit extension path in `.omp/settings.json`:
+Add the plugin root as an explicit extension path in `.omp/settings.json`:
 
 ```json
 {
   "extensions": [
-    "C:/Users/Anton/.omp/agent/extensions/omp-title-icon"
+    "<path-to-omp-title-icon>"
   ]
 }
 ```
@@ -57,10 +57,10 @@ bun run check
 
 1. Open an interactive terminal host that supports OSC title updates, such as Windows Terminal, iTerm2, or a Linux terminal emulator with application-title support.
 2. If you are using Windows Terminal, make sure the active profile does **not** set `suppressApplicationTitle: true`.
-3. Start OMP with the local extension path:
+3. Start OMP with the local extension path, substituting your own checkout paths:
 
 ```bash
-bun --cwd C:/Users/Anton/.omp/temp/oh-my-pi/packages/coding-agent src/cli.ts --extension C:/Users/Anton/.omp/agent/extensions/omp-title-icon
+bun --cwd <path-to-oh-my-pi>/packages/coding-agent src/cli.ts --extension <path-to-omp-title-icon>
 ```
 
 4. Start a normal prompt. While the model is responding, the title should start with `○`.
