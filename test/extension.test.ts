@@ -1,15 +1,14 @@
 import { describe, expect, it } from "bun:test";
 import registerTitleIcon, {
-  applyTitle,
   computeBaseTitle,
   computeVisualState,
   renderTitle,
   shouldEnableTitlePlugin,
   type ExtensionAPI,
   type ExtensionContext,
-  type TitleControllerState,
   type TitleScheduler,
 } from "../src/extension";
+import * as extensionModule from "../src/extension";
 
 const packageJson = (await Bun.file(new URL("../package.json", import.meta.url)).json()) as {
   description: string;
@@ -85,20 +84,16 @@ describe("computeVisualState", () => {
 });
 
 describe("renderTitle", () => {
-  it("renders the configured icons", () => {
+  it("renders the built-in default icons", () => {
     expect(renderTitle("Build Fix", "idle")).toBe("◆ Build Fix");
     expect(renderTitle("Build Fix", "running")).toBe("· Build Fix");
     expect(renderTitle("Build Fix", "ask")).toBe("?! Build Fix");
   });
+});
 
-  it("omits the separator when the configured prefix is empty", () => {
-    expect(
-      renderTitle("Build Fix", "running", {
-        idle: "◆",
-        running: "",
-        ask: "?!",
-      }),
-    ).toBe("Build Fix");
+describe("public module surface", () => {
+  it("does not expose applyTitle as a public helper", () => {
+    expect(extensionModule).not.toHaveProperty("applyTitle");
   });
 });
 
@@ -194,47 +189,6 @@ function createFakePi(sessionName: string | undefined = "Build Fix") {
   return { pi, handlers };
 }
 
-describe("applyTitle", () => {
-  it("skips duplicate non-forced writes but allows forced reassert writes", () => {
-    const { pi } = createFakePi("Build Fix");
-    const { ctx, titles } = createFakeContext();
-    const state: TitleControllerState = {
-      agentRunning: false,
-      askDepth: 0,
-      reassertTimer: undefined,
-      reassertUntil: 0,
-      lastAppliedTitle: undefined,
-    };
-
-    applyTitle(pi, ctx, state);
-    applyTitle(pi, ctx, state);
-    applyTitle(pi, ctx, state, { force: true });
-
-    expect(titles).toEqual(["◆ Build Fix", "◆ Build Fix"]);
-  });
-
-  it("uses injected prefixes when provided", () => {
-    const { pi } = createFakePi("Build Fix");
-    const { ctx, titles } = createFakeContext();
-    const state: TitleControllerState = {
-      agentRunning: true,
-      askDepth: 0,
-      reassertTimer: undefined,
-      reassertUntil: 0,
-      lastAppliedTitle: undefined,
-    };
-
-    applyTitle(pi, ctx, state, {
-      prefixes: {
-        idle: "IDLE",
-        running: "RUN",
-        ask: "ASK",
-      },
-    });
-
-    expect(titles).toEqual(["RUN Build Fix"]);
-  });
-});
 
 describe("registerTitleIcon", () => {
   it("does nothing when capability gating disables the plugin", () => {

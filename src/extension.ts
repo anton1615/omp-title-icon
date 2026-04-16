@@ -23,7 +23,7 @@ export interface ExtensionAPI {
 
 export type TitleIconState = "idle" | "running" | "ask";
 
-export interface TitlePrefixes {
+interface TitlePrefixes {
   idle: string;
   running: string;
   ask: string;
@@ -128,10 +128,10 @@ function formatTitle(prefix: string, baseTitle: string): string {
   return prefix ? `${prefix} ${baseTitle}` : baseTitle;
 }
 
-export function renderTitle(
+function renderTitleWithPrefixes(
   baseTitle: string,
   state: TitleIconState,
-  prefixes: TitlePrefixes = DEFAULT_TITLE_PREFIXES,
+  prefixes: TitlePrefixes,
 ): string {
   switch (state) {
     case "ask":
@@ -143,14 +143,18 @@ export function renderTitle(
   }
 }
 
-export function applyTitle(
+export function renderTitle(baseTitle: string, state: TitleIconState): string {
+  return renderTitleWithPrefixes(baseTitle, state, DEFAULT_TITLE_PREFIXES);
+}
+
+function applyTitle(
   pi: Pick<ExtensionAPI, "getSessionName">,
   ctx: Pick<ExtensionContext, "cwd" | "ui">,
   state: TitleControllerState,
   options: { force?: boolean; prefixes?: TitlePrefixes } = {},
 ): void {
   const baseTitle = computeBaseTitle(pi.getSessionName(), ctx.cwd);
-  const nextTitle = renderTitle(
+  const nextTitle = renderTitleWithPrefixes(
     baseTitle,
     computeVisualState(state.agentRunning, state.askDepth),
     options.prefixes ?? DEFAULT_TITLE_PREFIXES,
