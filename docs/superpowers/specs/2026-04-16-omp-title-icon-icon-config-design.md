@@ -3,6 +3,8 @@
 日期：2026-04-16
 狀態：Draft
 
+> Superseded note (2026-04-16): The original built-in default preset decision in this document (`◆ / · / ?!`) was superseded later the same day by `docs/superpowers/specs/2026-04-16-omp-title-icon-default-preset-refresh-design.md` and `docs/superpowers/plans/2026-04-16-omp-title-icon-default-preset-refresh.md`. Treat those preset values as the current source of truth; this document remains historical context for the configurable override design.
+
 ## 1. 目標
 
 在 `omp-title-icon` 既有的 cross-platform title plugin 基礎上，新增更醒目的預設圖示組合，並暴露使用者可覆寫的 icon/prefix 設定。

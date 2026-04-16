@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> Superseded note (2026-04-16): The original built-in default preset targeted by this plan (`◆ / · / ?!`) was superseded later the same day by `docs/superpowers/specs/2026-04-16-omp-title-icon-default-preset-refresh-design.md` and `docs/superpowers/plans/2026-04-16-omp-title-icon-default-preset-refresh.md`. Use those documents for the current preset values; keep this plan only as historical context for the configurable override work.
+
 **Goal:** Replace the hard-coded title glyphs with configurable status prefixes, ship the new default preset `◆ / · / ?!`, and let users override the prefixes from `~/.omp/agent/config.yml` with legacy fallback to `~/.omp/agent/settings.json`.
 
 **Architecture:** Keep the plugin in one runtime module and one Bun test file, but separate the work into three layers: pure prefix rendering, pure config-source resolution, and file-backed loading/integration. Load the user config once at extension registration, keep runtime state machine behavior unchanged, and thread the resolved prefixes into title rendering without making the plugin depend on marketplace/plugin runtime settings.

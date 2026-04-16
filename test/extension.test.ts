@@ -68,9 +68,17 @@ function expectReadmeSectionToMentionStateIcon(
   icon: string,
  ) {
   const escapedIcon = escapeRegExp(icon);
-  expect(sectionText).toMatch(
-    new RegExp(`(?:${escapedIcon}[\\s\\S]{0,120}${state}|${state}[\\s\\S]{0,120}${escapedIcon})`, "i"),
+  const plainIconWithState = new RegExp(
+    `(?:${escapedIcon}[\\s\\S]{0,120}${state}|${state}[\\s\\S]{0,120}${escapedIcon})`,
+    "i",
   );
+  const emojiVariationIconWithState = new RegExp(
+    `(?:${escapedIcon}\\uFE0F[\\s\\S]{0,120}${state}|${state}[\\s\\S]{0,120}${escapedIcon}\\uFE0F)`,
+    "iu",
+  );
+
+  expect(sectionText).toMatch(plainIconWithState);
+  expect(sectionText).not.toMatch(emojiVariationIconWithState);
 }
 
 function expectReadmeSectionToContainFencedBlock(
@@ -146,6 +154,7 @@ describe("README contract", () => {
     expectReadmeSectionToMentionStateIcon(introSection, "idle", "✳");
     expectReadmeSectionToMentionStateIcon(introSection, "running", "⟳");
     expect(introSection).toMatch(/(?:ask tool|ask prefix|ask)[\s\S]{0,120}\?!|\?![\s\S]{0,120}(?:ask tool|ask prefix|ask)/i);
+    expect(introSection).not.toContain("✳\uFE0F");
   });
 
   it("documents config-based user overrides semantically", () => {
@@ -154,6 +163,7 @@ describe("README contract", () => {
 
     expect(userOverridesSection).toContain("~/.omp/agent/config.yml");
     expect(userOverridesSection).toContain("~/.omp/agent/settings.json");
+    expect(userOverridesSection).not.toContain("✳\uFE0F");
     expectReadmeSectionToContainFencedBlock(userOverridesSection, "yaml", [
       /ompTitleIcon\s*:/,
       /icons\s*:/,
