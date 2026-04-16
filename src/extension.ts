@@ -99,7 +99,11 @@ type ExtractConfiguredIconsResult =
   | { kind: "invalid-structure" };
 
 function extractConfiguredIcons(config: unknown): ExtractConfiguredIconsResult {
-  if (!isRecord(config) || !("ompTitleIcon" in config)) {
+  if (!isRecord(config)) {
+    return { kind: "invalid-structure" };
+  }
+
+  if (!("ompTitleIcon" in config)) {
     return { kind: "missing-icons" };
   }
 
