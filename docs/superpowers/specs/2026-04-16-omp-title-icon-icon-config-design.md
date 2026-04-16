@@ -1,30 +1,34 @@
-# omp-title-icon Icon Preset and User Override Design
+# Historical omp-title-icon Icon Preset and User Override Design (Superseded)
 
 日期：2026-04-16
-狀態：Draft
+狀態：Superseded
 
-> Superseded note (2026-04-16): The original built-in default preset decision in this document (`◆ / · / ?!`) was superseded later the same day by `docs/superpowers/specs/2026-04-16-omp-title-icon-default-preset-refresh-design.md` and `docs/superpowers/plans/2026-04-16-omp-title-icon-default-preset-refresh.md`. Treat those preset values as the current source of truth; this document remains historical context for the configurable override design.
+ > Superseded note (2026-04-16): The original built-in default preset decision recorded in this document (`◆ / · / ?!`) was superseded later the same day by `docs/superpowers/specs/2026-04-16-omp-title-icon-default-preset-refresh-design.md` and `docs/superpowers/plans/2026-04-16-omp-title-icon-default-preset-refresh.md`. Treat those newer documents as the only current source of truth for preset values. This file remains historical context for the configurable override design that introduced prefix-string settings.
 
-## 1. 目標
+## 1. 目標（歷史）
 
-在 `omp-title-icon` 既有的 cross-platform title plugin 基礎上，新增更醒目的預設圖示組合，並暴露使用者可覆寫的 icon/prefix 設定。
+這份文件描述的是 `omp-title-icon` 當時把固定 glyph 升級為可覆寫 prefix string 的原始設計，包含當時選定的內建預設值 `◆ / · / ?!`。
 
-本次變更的產品目標：
+> 目前有效的預設值已改為 `✳ / ⟳ / ?!`；若需要現行 preset，請改讀 preset-refresh spec/plan。
+
+這份歷史設計在 `omp-title-icon` 既有的 cross-platform title plugin 基礎上，新增更醒目的預設圖示組合，並暴露使用者可覆寫的 icon/prefix 設定。
+
+當時這次變更的產品目標：
 
 - 預設圖示不再使用過小的實心圓組合
 - `idle` 與 `ask` 必須比 `running` 更醒目
 - 使用者可在自己的 OMP 設定檔中覆寫這三個狀態的圖示/前綴
 - 設定覆寫應不依賴 marketplace/plugin runtime 設定系統，因為當前此插件主要仍以 extension path 載入
 
-## 2. 預設圖示決策
+## 2. 原始預設圖示決策（已被取代）
 
-使用者已選定新的預設組合為：
+此文件在當時記錄的預設組合為：
 
 - `idle`: `◆`
 - `running`: `·`
 - `ask`: `?!`
 
-設計理由：
+當時的設計理由：
 
 - `◆` 比 `●` 更大、更有存在感，適合 idle 的穩定狀態提示
 - `·` 的存在感明顯低於實心/空心圓，符合 running 不必過度搶眼的需求
@@ -98,31 +102,35 @@ fallback 格式：
 }
 ```
 
-## 6. 設定優先序
+## 6. 設定優先序（歷史設計，規則仍沿用）
 
-設定讀取順序如下：
+此段描述的是原始 icon-config 設計定下的讀取順序；preset-refresh 只改內建預設值，沒有改 precedence。
+
+當時設計的設定讀取順序如下：
 
 1. `~/.omp/agent/config.yml`
 2. `~/.omp/agent/settings.json`
-3. 內建預設值
+3. 當時的內建預設值
 
 規則：
 
 - 若 `config.yml` 中存在 `ompTitleIcon.icons`，優先使用它
 - 若 `config.yml` 中不存在該區塊，再讀 `settings.json`
-- 若兩者都沒有可用設定，回退到內建預設：
+- 若兩者都沒有可用設定，當時回退到內建預設：
   - `idle = "◆"`
   - `running = "·"`
   - `ask = "?!"`
 
-本次不做跨檔 merge。
+今天若需要現行 preset，請將上述 fallback 值改讀新文件中的 `✳ / ⟳ / ?!`。
+
+這份歷史設計不做跨檔 merge。
 
 也就是說：
 
 - `config.yml` 一旦提供 `ompTitleIcon.icons`，就視為完整優先來源
 - 不再從 `settings.json` 補洞
 
-這樣可以避免兩個設定來源混用時出現難理解的結果。
+這樣可以避免兩個設定來源混用時出現難理解的結果
 
 ## 7. 解析與驗證規則
 
@@ -152,7 +160,7 @@ fallback 格式：
 - 產生的 title 應為 `Build Fix`
 - 而不是 ` Build Fix`
 
-## 8. 渲染規則
+## 8. 渲染規則（歷史預設示例）
 
 目前渲染形式是：
 
@@ -163,12 +171,14 @@ fallback 格式：
 - 若 prefix 非空：`<prefix> <baseTitle>`
 - 若 prefix 為空：`<baseTitle>`
 
-範例：
+這份歷史文件中的原始範例：
 
 - idle default: `◆ Build Fix`
 - running default: `· Build Fix`
 - ask default: `?! Build Fix`
 - running empty override: `Build Fix`
+
+現行預設範例已更新為 `✳ Build Fix` / `⟳ Build Fix` / `?! Build Fix`，請以 preset-refresh spec/plan 為準。
 
 ## 9. 與既有狀態機的關係
 
@@ -182,13 +192,13 @@ fallback 格式：
 - `computeBaseTitle()` 不變
 - cross-platform capability gating 不變
 
-## 10. 測試需求
+## 10. 測試需求（歷史預設示例）
 
 至少新增或調整以下測試：
 
 ### 10.1 預設 prefix
 
-驗證新的預設渲染：
+驗證這份歷史文件當時的預設渲染：
 
 - idle -> `◆ Build Fix`
 - running -> `· Build Fix`
@@ -233,26 +243,31 @@ fallback 格式：
 - 不做 marketplace install/config workflow 變更
 - 不做 icon 套件/theme system
 
-## 12. 建議實作邊界
+## 12. 建議實作邊界（歷史）
 
-本次 implementation 應只包含：
+這份歷史 implementation 當時只包含：
 
 - 將固定 glyph 改成狀態 prefix 設定
 - 新增設定檔讀取器（`config.yml` 主、`settings.json` fallback）
-- 套用新的內建預設值 `◆ / · / ?!`
+- 套用當時的內建預設值 `◆ / · / ?!`
 - 補齊覆寫/fallback/空字串/錯誤處理測試
 - 更新 README 說明新的預設與自訂方式
 
-## 13. 最終建議
+## 13. 最終建議（歷史）
 
-推薦將 `omp-title-icon` 的狀態標記正式升級為「可設定 prefix」。
+這份歷史文件的最終建議，是將 `omp-title-icon` 的狀態標記正式升級為「可設定 prefix」。
 
-預設值使用：
+當時的預設值建議使用：
 
 - idle: `◆`
 - running: `·`
 - ask: `?!`
 
+目前有效的預設值已由 preset-refresh 文件取代為：
+
+- idle: `✳`
+- running: `⟳`
+- ask: `?!`
 使用者設定來源採：
 
 - `~/.omp/agent/config.yml` 為主

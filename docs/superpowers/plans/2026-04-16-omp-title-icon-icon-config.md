@@ -1,12 +1,14 @@
-# omp-title-icon Icon Config Implementation Plan
+# Historical omp-title-icon Icon Config Implementation Plan (Superseded)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> Superseded note (2026-04-16): The original built-in default preset targeted by this plan (`◆ / · / ?!`) was superseded later the same day by `docs/superpowers/specs/2026-04-16-omp-title-icon-default-preset-refresh-design.md` and `docs/superpowers/plans/2026-04-16-omp-title-icon-default-preset-refresh.md`. Use those documents for the current preset values; keep this plan only as historical context for the configurable override work.
+ > Superseded note (2026-04-16): The original built-in default preset targeted by this plan (`◆ / · / ?!`) was superseded later the same day by `docs/superpowers/specs/2026-04-16-omp-title-icon-default-preset-refresh-design.md` and `docs/superpowers/plans/2026-04-16-omp-title-icon-default-preset-refresh.md`. Use those newer documents as the only current source of truth for preset values. This file remains historical context for the configurable override work.
 
-**Goal:** Replace the hard-coded title glyphs with configurable status prefixes, ship the new default preset `◆ / · / ?!`, and let users override the prefixes from `~/.omp/agent/config.yml` with legacy fallback to `~/.omp/agent/settings.json`.
+**Goal (historical):** This plan originally replaced the hard-coded title glyphs with configurable status prefixes, shipped the then-current default preset `◆ / · / ?!`, and added user overrides from `~/.omp/agent/config.yml` with legacy fallback to `~/.omp/agent/settings.json`.
 
-**Architecture:** Keep the plugin in one runtime module and one Bun test file, but separate the work into three layers: pure prefix rendering, pure config-source resolution, and file-backed loading/integration. Load the user config once at extension registration, keep runtime state machine behavior unchanged, and thread the resolved prefixes into title rendering without making the plugin depend on marketplace/plugin runtime settings.
+> Current preset values are now `✳ / ⟳ / ?!`; do not use the historical literals below as the active defaults.
+
+**Architecture (historical):** Keep the plugin in one runtime module and one Bun test file, but separate the work into three layers: pure prefix rendering, pure config-source resolution, and file-backed loading/integration. Load the user config once at extension registration, keep runtime state machine behavior unchanged, and thread the resolved prefixes into title rendering without making the plugin depend on marketplace/plugin runtime settings.
 
 **Tech Stack:** TypeScript, Bun test runner, `node:fs`, `node:os`, `node:path`, Bun `YAML.parse`, Oh My Pi extension API.
 
@@ -15,11 +17,11 @@
 ## File Structure
 
 - `src/extension.ts` — add status-prefix types/defaults, config resolution helpers, file-backed config loading, and integrate prefixes into title rendering.
-- `test/extension.test.ts` — add regression coverage for new defaults, empty-prefix rendering, config source precedence, parse failures, and register-time override behavior.
-- `README.md` — document the new default preset and the supported user override file formats.
-- `docs/superpowers/specs/2026-04-16-omp-title-icon-icon-config-design.md` — approved design reference.
+- `test/extension.test.ts` — add regression coverage for the historical `◆ / · / ?!` defaults, empty-prefix rendering, config source precedence, parse failures, and register-time override behavior.
+- `README.md` — document the historical default preset and the supported user override file formats.
+- `docs/superpowers/specs/2026-04-16-omp-title-icon-icon-config-design.md` — historical design reference for the original configurable override work
 
-### Task 1: Replace fixed glyph rendering with configurable prefixes
+### Task 1: Replace fixed glyph rendering with configurable prefixes (historical preset task)
 
 **Files:**
 - Modify: `src/extension.ts`
@@ -346,10 +348,9 @@ export function loadConfiguredTitlePrefixes(
 
 Extend `RegisterTitleIconOptions` with `homeDir?: string` and `readText?: (filePath: string) => string | undefined`, load prefixes once inside `registerTitleIcon()`, and pass them into every `startReassert()` / `applyTitle()` call.
 
-- [ ] **Step 4: Update existing lifecycle tests to the new defaults and verify GREEN**
+- [ ] **Step 4: Update existing lifecycle tests to the historical defaults and verify GREEN**
 
-Replace old expectations like `● / ○ / ?` with `◆ / · / ?!`, then run:
-
+Replace old expectations like `● / ○ / ?` with the then-current historical preset `◆ / · / ?!`, then run:
 Run: `bun test test/extension.test.ts`
 
 Expected:
