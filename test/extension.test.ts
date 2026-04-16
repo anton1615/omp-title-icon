@@ -169,7 +169,10 @@ describe("README contract", () => {
       /"ask"\s*:\s*"\?!"/,
     ]);
     expect(userOverridesSection).toMatch(
-      /primary config source[\s\S]*falls back to the legacy `~\/.omp\/agent\/settings\.json` location/i,
+      /primary config source[\s\S]*does not define an `ompTitleIcon\.icons` block[\s\S]*falls back to the legacy `~\/.omp\/agent\/settings\.json` location/i,
+    );
+    expect(userOverridesSection).toMatch(
+      /exists but is unreadable[\s\S]*cannot be parsed[\s\S]*invalid structure[\s\S]*does not consult legacy `~\/.omp\/agent\/settings\.json`[\s\S]*built-in defaults/i,
     );
     expect(userOverridesSection).toMatch(
       /does not merge missing fields from the legacy `~\/.omp\/agent\/settings\.json` file[\s\S]*built-in defaults/i,

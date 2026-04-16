@@ -24,6 +24,8 @@ ompTitleIcon:
 
 `~/.omp/agent/config.yml` is the primary config source. If that file does not define an `ompTitleIcon.icons` block, the extension falls back to the legacy `~/.omp/agent/settings.json` location:
 
+If the canonical `~/.omp/agent/config.yml` exists but is unreadable, cannot be parsed, or has an invalid structure, the extension does not consult legacy `~/.omp/agent/settings.json` and uses the built-in defaults instead.
+
 Once `~/.omp/agent/config.yml` defines `ompTitleIcon.icons`, the extension does not merge missing fields from the legacy `~/.omp/agent/settings.json` file. Any icon values omitted there fall back to the built-in defaults instead.
 
 ```json
