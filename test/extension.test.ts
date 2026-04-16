@@ -5,7 +5,6 @@ import * as path from "node:path";
 import registerTitleIcon, {
   computeBaseTitle,
   computeVisualState,
-  renderTitle,
   shouldEnableTitlePlugin,
   type ExtensionAPI,
   type ExtensionContext,
@@ -89,14 +88,6 @@ describe("computeVisualState", () => {
   });
 });
 
-describe("renderTitle", () => {
-  it("renders the built-in default icons", () => {
-    expect(renderTitle("Build Fix", "idle")).toBe("◆ Build Fix");
-    expect(renderTitle("Build Fix", "running")).toBe("· Build Fix");
-    expect(renderTitle("Build Fix", "ask")).toBe("?! Build Fix");
-  });
-});
-
 describe("README contract", () => {
   it("documents the built-in default icons", () => {
     expect(readmeText).toContain("- `◆` when idle");
@@ -108,6 +99,10 @@ describe("README contract", () => {
 describe("public module surface", () => {
   it("does not expose applyTitle as a public helper", () => {
     expect(extensionModule).not.toHaveProperty("applyTitle");
+  });
+
+  it("does not expose renderTitle as a public helper", () => {
+    expect(extensionModule).not.toHaveProperty("renderTitle");
   });
 });
 
@@ -123,7 +118,6 @@ describe("package metadata", () => {
     expect(packageJson.keywords).toContain("macos");
     expect(packageJson.keywords).toContain("linux");
   });
-
 });
 
 describe("marketplace metadata", () => {
@@ -202,6 +196,7 @@ function createFakePi(sessionName: string | undefined = "Build Fix") {
 
   return { pi, handlers };
 }
+
 type AssertFalse<T extends false> = T;
 
 const registerTitleIconOptionsRemovesHomeDirOverride: AssertFalse<
@@ -212,9 +207,13 @@ const registerTitleIconOptionsRemovesReadTextOverride: AssertFalse<
   "readText" extends keyof RegisterTitleIconOptions ? true : false
 > = false;
 
+const registerTitleIconOptionsRemovesEnvOverride: AssertFalse<
+  "env" extends keyof RegisterTitleIconOptions ? true : false
+> = false;
+
 void registerTitleIconOptionsRemovesHomeDirOverride;
 void registerTitleIconOptionsRemovesReadTextOverride;
-
+void registerTitleIconOptionsRemovesEnvOverride;
 
 function createTempHome(files: Array<{ relativePath: string; content: string }>) {
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-title-icon-"));
@@ -233,42 +232,57 @@ function createTempHome(files: Array<{ relativePath: string; content: string }>)
   };
 }
 
-function withProcessHome<T>(homeDir: string, run: () => T): T {
-  const previousHome = process.env.HOME;
-  const previousUserProfile = process.env.USERPROFILE;
+function withProcessEnv<T>(
+  updates: Record<string, string | undefined>,
+  run: () => T,
+  clears: string[] = [],
+): T {
+  const previousValues = new Map<string, string | undefined>();
 
-  process.env.HOME = homeDir;
-  process.env.USERPROFILE = homeDir;
+  for (const key of new Set([...Object.keys(updates), ...clears])) {
+    previousValues.set(key, process.env[key]);
+  }
+
+  for (const key of clears) {
+    delete process.env[key];
+  }
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === undefined) {
+      delete process.env[key];
+      continue;
+    }
+
+    process.env[key] = value;
+  }
 
   try {
     return run();
   } finally {
-    if (previousHome === undefined) {
-      delete process.env.HOME;
-    } else {
-      process.env.HOME = previousHome;
-    }
-
-    if (previousUserProfile === undefined) {
-      delete process.env.USERPROFILE;
-    } else {
-      process.env.USERPROFILE = previousUserProfile;
+    for (const [key, value] of previousValues) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
     }
   }
 }
 
-function expectLoadedIdleTitle(
-  env: Record<string, string | undefined>,
-  sessionName = "Build Fix",
-) {
+function withProcessHome<T>(homeDir: string, run: () => T): T {
+  return withProcessEnv({ HOME: homeDir, USERPROFILE: homeDir }, run);
+}
+
+function expectLoadedIdleTitle(sessionName = "Build Fix") {
   const { pi, handlers } = createFakePi(sessionName);
   const scheduler = createFakeScheduler();
   const { ctx, titles } = createFakeContext();
 
-  registerTitleIcon(pi, {
-    env: { ...env, WT_SESSION: "abc" },
-    scheduler: scheduler.scheduler,
-  });
+  withProcessEnv({ WT_SESSION: "abc" }, () => {
+    registerTitleIcon(pi, {
+      scheduler: scheduler.scheduler,
+    });
+  }, ["TERM"]);
 
   handlers.get("session_start")?.({ type: "session_start" }, ctx);
 
@@ -299,7 +313,7 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle({}));
+      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle());
 
       expect(titles).toEqual(["CFG Build Fix"]);
     } finally {
@@ -307,9 +321,8 @@ describe("config-backed title prefixes", () => {
     }
   });
 
-
-  it("ignores injected env home overrides when loading config", () => {
-    const realFixture = createTempHome([
+  it("loads config from process home rather than any removed env override", () => {
+    const fixture = createTempHome([
       {
         relativePath: path.join(".omp", "agent", "config.yml"),
         content: [
@@ -321,33 +334,16 @@ describe("config-backed title prefixes", () => {
         ].join("\n"),
       },
     ]);
-    const injectedFixture = createTempHome([
-      {
-        relativePath: path.join(".omp", "agent", "config.yml"),
-        content: [
-          "ompTitleIcon:",
-          "  icons:",
-          '    idle: "INJECTED"',
-          '    running: "RUN"',
-          '    ask: "ASK"',
-        ].join("\n"),
-      },
-    ]);
 
     try {
-      const { titles } = withProcessHome(realFixture.homeDir, () =>
-        expectLoadedIdleTitle({
-          HOME: injectedFixture.homeDir,
-          USERPROFILE: injectedFixture.homeDir,
-        }),
-      );
+      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle());
 
       expect(titles).toEqual(["REAL Build Fix"]);
     } finally {
-      realFixture.cleanup();
-      injectedFixture.cleanup();
+      fixture.cleanup();
     }
   });
+
   it("falls back to USERPROFILE when HOME is an empty string", () => {
     const fixture = createTempHome([
       {
@@ -362,29 +358,14 @@ describe("config-backed title prefixes", () => {
       },
     ]);
 
-    const previousHome = process.env.HOME;
-    const previousUserProfile = process.env.USERPROFILE;
-
-    process.env.HOME = "";
-    process.env.USERPROFILE = fixture.homeDir;
-
     try {
-      const { titles } = expectLoadedIdleTitle({});
+      const { titles } = withProcessEnv(
+        { WT_SESSION: "abc", HOME: "", USERPROFILE: fixture.homeDir },
+        () => expectLoadedIdleTitle(),
+      );
 
       expect(titles).toEqual(["USR Build Fix"]);
     } finally {
-      if (previousHome === undefined) {
-        delete process.env.HOME;
-      } else {
-        process.env.HOME = previousHome;
-      }
-
-      if (previousUserProfile === undefined) {
-        delete process.env.USERPROFILE;
-      } else {
-        process.env.USERPROFILE = previousUserProfile;
-      }
-
       fixture.cleanup();
     }
   });
@@ -404,29 +385,18 @@ describe("config-backed title prefixes", () => {
     ]);
     const unusableHomeFixture = createTempHome([]);
 
-    const previousHome = process.env.HOME;
-    const previousUserProfile = process.env.USERPROFILE;
-
-    process.env.HOME = unusableHomeFixture.homeDir;
-    process.env.USERPROFILE = userProfileFixture.homeDir;
-
     try {
-      const { titles } = expectLoadedIdleTitle({});
+      const { titles } = withProcessEnv(
+        {
+          WT_SESSION: "abc",
+          HOME: unusableHomeFixture.homeDir,
+          USERPROFILE: userProfileFixture.homeDir,
+        },
+        () => expectLoadedIdleTitle(),
+      );
 
       expect(titles).toEqual(["USR Build Fix"]);
     } finally {
-      if (previousHome === undefined) {
-        delete process.env.HOME;
-      } else {
-        process.env.HOME = previousHome;
-      }
-
-      if (previousUserProfile === undefined) {
-        delete process.env.USERPROFILE;
-      } else {
-        process.env.USERPROFILE = previousUserProfile;
-      }
-
       userProfileFixture.cleanup();
       unusableHomeFixture.cleanup();
     }
@@ -449,7 +419,7 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle({}));
+      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle());
 
       expect(titles).toEqual(["LEGACY Build Fix"]);
     } finally {
@@ -476,14 +446,18 @@ describe("config-backed title prefixes", () => {
 
     try {
       withProcessHome(fixture.homeDir, () => {
-        registerTitleIcon(pi, {
-          env: { WT_SESSION: "abc" },
-          scheduler: scheduler.scheduler,
-        });
+        withProcessEnv({ WT_SESSION: "abc" }, () => {
+          registerTitleIcon(pi, {
+            scheduler: scheduler.scheduler,
+          });
+        }, ["TERM"]);
 
         handlers.get("session_start")?.({ type: "session_start" }, ctx);
         handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
-        handlers.get("tool_execution_start")?.({ type: "tool_execution_start", toolName: "ask" }, ctx);
+        handlers.get("tool_execution_start")?.(
+          { type: "tool_execution_start", toolName: "ask" },
+          ctx,
+        );
       });
 
       expect(titles).toEqual(["Build Fix", "· Build Fix", "ASK Build Fix"]);
@@ -509,7 +483,7 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle({}));
+      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle());
 
       expect(titles).toEqual(["◆ Build Fix"]);
     } finally {
@@ -526,7 +500,7 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle({}));
+      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle());
 
       expect(titles).toEqual(["◆ Build Fix"]);
     } finally {
@@ -553,15 +527,22 @@ describe("config-backed title prefixes", () => {
 
     try {
       withProcessHome(fixture.homeDir, () => {
-        registerTitleIcon(pi, {
-          env: { WT_SESSION: "abc" },
-          scheduler: scheduler.scheduler,
-        });
+        withProcessEnv({ WT_SESSION: "abc" }, () => {
+          registerTitleIcon(pi, {
+            scheduler: scheduler.scheduler,
+          });
+        }, ["TERM"]);
 
         handlers.get("session_start")?.({ type: "session_start" }, ctx);
         handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
-        handlers.get("tool_execution_start")?.({ type: "tool_execution_start", toolName: "ask" }, ctx);
-        handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
+        handlers.get("tool_execution_start")?.(
+          { type: "tool_execution_start", toolName: "ask" },
+          ctx,
+        );
+        handlers.get("tool_execution_end")?.(
+          { type: "tool_execution_end", toolName: "ask" },
+          ctx,
+        );
         handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
       });
 
@@ -578,14 +559,14 @@ describe("config-backed title prefixes", () => {
   });
 });
 
-
-
 describe("registerTitleIcon", () => {
   it("does nothing when capability gating disables the plugin", () => {
     const { pi, handlers } = createFakePi();
-    registerTitleIcon(pi, {
-      env: { TERM: "dumb" },
-      scheduler: createFakeScheduler().scheduler,
+
+    withProcessEnv({ TERM: "dumb" }, () => {
+      registerTitleIcon(pi, {
+        scheduler: createFakeScheduler().scheduler,
+      });
     });
 
     expect(handlers.size).toBe(0);
@@ -596,10 +577,11 @@ describe("registerTitleIcon", () => {
     const scheduler = createFakeScheduler();
     const { ctx, titles } = createFakeContext();
 
-    registerTitleIcon(pi, {
-      env: { WT_SESSION: "abc" },
-      scheduler: scheduler.scheduler,
-    });
+    withProcessEnv({ WT_SESSION: "abc" }, () => {
+      registerTitleIcon(pi, {
+        scheduler: scheduler.scheduler,
+      });
+    }, ["TERM"]);
 
     handlers.get("session_start")?.({ type: "session_start" }, ctx);
     handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
@@ -619,10 +601,11 @@ describe("registerTitleIcon", () => {
     const scheduler = createFakeScheduler();
     const { ctx, titles } = createFakeContext("/Users/anton/project");
 
-    registerTitleIcon(pi, {
-      env: { TERM_PROGRAM: "iTerm.app" },
-      scheduler: scheduler.scheduler,
-    });
+    withProcessEnv({ TERM_PROGRAM: "iTerm.app" }, () => {
+      registerTitleIcon(pi, {
+        scheduler: scheduler.scheduler,
+      });
+    }, ["TERM"]);
 
     expect(handlers.size).toBeGreaterThan(0);
 
@@ -644,10 +627,11 @@ describe("registerTitleIcon", () => {
     const scheduler = createFakeScheduler();
     const { ctx, titles } = createFakeContext();
 
-    registerTitleIcon(pi, {
-      env: { WT_SESSION: "abc" },
-      scheduler: scheduler.scheduler,
-    });
+    withProcessEnv({ WT_SESSION: "abc" }, () => {
+      registerTitleIcon(pi, {
+        scheduler: scheduler.scheduler,
+      });
+    }, ["TERM"]);
 
     handlers.get("session_start")?.({ type: "session_start" }, ctx);
     handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
@@ -660,10 +644,11 @@ describe("registerTitleIcon", () => {
     const scheduler = createFakeScheduler();
     const { ctx, titles } = createFakeContext();
 
-    registerTitleIcon(pi, {
-      env: { WT_SESSION: "abc" },
-      scheduler: scheduler.scheduler,
-    });
+    withProcessEnv({ WT_SESSION: "abc" }, () => {
+      registerTitleIcon(pi, {
+        scheduler: scheduler.scheduler,
+      });
+    }, ["TERM"]);
 
     handlers.get("session_start")?.({ type: "session_start" }, ctx);
     expect(titles).toEqual(["◆ Build Fix"]);

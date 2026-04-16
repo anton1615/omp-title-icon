@@ -46,7 +46,6 @@ export interface TitleScheduler {
 
 export interface RegisterTitleIconOptions {
   scheduler?: TitleScheduler;
-  env?: Record<string, string | undefined>;
 }
 
 const REASSERT_DURATION_MS = 2000;
@@ -262,9 +261,6 @@ function renderTitleWithPrefixes(
   }
 }
 
-export function renderTitle(baseTitle: string, state: TitleIconState): string {
-  return renderTitleWithPrefixes(baseTitle, state, DEFAULT_TITLE_PREFIXES);
-}
 
 function applyTitle(
   pi: Pick<ExtensionAPI, "getSessionName">,
@@ -334,9 +330,8 @@ export default function registerTitleIcon(
   options: RegisterTitleIconOptions = {},
 ): void {
   const scheduler = options.scheduler ?? defaultScheduler;
-  const env = options.env ?? process.env;
 
-  if (!shouldEnableTitlePlugin(env)) {
+  if (!shouldEnableTitlePlugin()) {
     return;
   }
 
