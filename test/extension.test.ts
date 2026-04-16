@@ -94,6 +94,14 @@ describe("README contract", () => {
     expect(readmeText).toContain("- `·` when running");
     expect(readmeText).toContain("- `?!` when the `ask` tool is waiting for input");
   });
+
+  it("documents config-based user overrides", () => {
+    expect(readmeText).toContain("~/.omp/agent/config.yml");
+    expect(readmeText).toContain("~/.omp/agent/settings.json");
+    expect(readmeText).toContain("ompTitleIcon:");
+    expect(readmeText).toContain('idle: ""');
+    expect(readmeText).toContain("Set any icon to an empty string to remove the prefix for that state.");
+  });
 });
 
 describe("public module surface", () => {

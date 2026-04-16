@@ -8,6 +8,46 @@ It prefixes the visible terminal title with:
 - `·` when running
 - `?!` when the `ask` tool is waiting for input
 
+## User overrides
+
+By default the extension uses `◆` for idle, `·` for running, and `?!` while the `ask` tool is waiting for input.
+
+For per-user overrides, define `ompTitleIcon.icons` in `~/.omp/agent/config.yml`:
+
+```yaml
+ompTitleIcon:
+  icons:
+    idle: "◆"
+    running: "·"
+    ask: "?!"
+```
+
+`~/.omp/agent/config.yml` is the primary config source. If that file does not define an `ompTitleIcon.icons` block, the extension falls back to the legacy `~/.omp/agent/settings.json` location:
+
+```json
+{
+  "ompTitleIcon": {
+    "icons": {
+      "idle": "◆",
+      "running": "·",
+      "ask": "?!"
+    }
+  }
+}
+```
+
+Set any icon to an empty string to remove the prefix for that state.
+
+```yaml
+ompTitleIcon:
+  icons:
+    idle: ""
+    running: "·"
+    ask: "?!"
+```
+
+The title update remains best-effort: the configured prefixes are only visible when your terminal host accepts OSC title changes and does not immediately overwrite them.
+
 ## Installation
 
 ### Marketplace status
