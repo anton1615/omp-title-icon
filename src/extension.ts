@@ -169,7 +169,7 @@ function loadTitlePrefixesFromHome(homeDir: string): TitlePrefixes | undefined {
       return undefined;
     }
 
-    return { ...DEFAULT_TITLE_PREFIXES };
+    return undefined;
   }
 
   return undefined;
