@@ -152,7 +152,6 @@ describe("registerTitleIcon", () => {
   it("does nothing when capability gating disables the plugin", () => {
     const { pi, handlers } = createFakePi();
     registerTitleIcon(pi, {
-      platform: "linux",
       env: { TERM: "dumb" },
       scheduler: createFakeScheduler().scheduler,
     });
@@ -166,7 +165,6 @@ describe("registerTitleIcon", () => {
     const { ctx, titles } = createFakeContext();
 
     registerTitleIcon(pi, {
-      platform: "win32",
       env: { WT_SESSION: "abc" },
       scheduler: scheduler.scheduler,
     });
@@ -190,7 +188,6 @@ describe("registerTitleIcon", () => {
     const { ctx, titles } = createFakeContext();
 
     registerTitleIcon(pi, {
-      platform: "win32",
       env: { WT_SESSION: "abc" },
       scheduler: scheduler.scheduler,
     });
@@ -207,7 +204,6 @@ describe("registerTitleIcon", () => {
     const { ctx, titles } = createFakeContext();
 
     registerTitleIcon(pi, {
-      platform: "win32",
       env: { WT_SESSION: "abc" },
       scheduler: scheduler.scheduler,
     });

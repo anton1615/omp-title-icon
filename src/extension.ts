@@ -39,7 +39,6 @@ export interface TitleScheduler {
 
 export interface RegisterTitleIconOptions {
   scheduler?: TitleScheduler;
-  platform?: NodeJS.Platform;
   env?: Record<string, string | undefined>;
 }
 
