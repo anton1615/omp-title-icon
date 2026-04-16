@@ -131,18 +131,8 @@ function parseConfiguredPrefixes(
   }
 }
 
-function resolveHomeDirs(): string[] {
-  const homeDirs: string[] = [];
-
-  for (const candidate of [process.env.HOME, process.env.USERPROFILE, os.homedir()]) {
-    if (candidate === undefined || candidate === "" || homeDirs.includes(candidate)) {
-      continue;
-    }
-
-    homeDirs.push(candidate);
-  }
-
-  return homeDirs;
+function resolveHomeDir(): string {
+  return os.homedir();
 }
 
 function loadTitlePrefixesFromHome(homeDir: string): TitlePrefixes | undefined {
@@ -176,11 +166,9 @@ function loadTitlePrefixesFromHome(homeDir: string): TitlePrefixes | undefined {
 }
 
 function loadTitlePrefixes(): TitlePrefixes {
-  for (const homeDir of resolveHomeDirs()) {
-    const loadedPrefixes = loadTitlePrefixesFromHome(homeDir);
-    if (loadedPrefixes !== undefined) {
-      return loadedPrefixes;
-    }
+  const loadedPrefixes = loadTitlePrefixesFromHome(resolveHomeDir());
+  if (loadedPrefixes !== undefined) {
+    return loadedPrefixes;
   }
 
   return { ...DEFAULT_TITLE_PREFIXES };

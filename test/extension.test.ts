@@ -364,9 +364,25 @@ function withProcessEnv<T>(
   }
 }
 
-function withProcessHome<T>(homeDir: string, run: () => T): T {
-  return withProcessEnv({ HOME: homeDir, USERPROFILE: homeDir }, run);
+async function withMockedHomeDir<T>(
+  homeDir: string,
+  run: (registerTitleIconImpl: typeof registerTitleIcon) => Promise<T> | T,
+): Promise<T> {
+  mock.module("node:os", () => ({
+    ...os,
+    homedir: () => homeDir,
+  }));
+  const freshExtension = await import(
+    `../src/extension.ts?os-home-${Date.now()}-${Math.random()}`,
+) as typeof extensionModule;
+
+  try {
+    return await run(freshExtension.default);
+  } finally {
+    mock.restore();
+  }
 }
+
 
 function expectLoadedIdleTitle(
   sessionName = "Build Fix",
@@ -392,7 +408,7 @@ function expectLoadedIdleTitle(
 }
 
 describe("config-backed title prefixes", () => {
-  it("prefers config.yml icons over settings.json", () => {
+  it("prefers config.yml icons over settings.json in the canonical home", async () => {
     const fixture = createTempHome([
       {
         relativePath: path.join(".omp", "agent", "config.yml"),
@@ -415,7 +431,9 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle());
+      const { titles } = await withMockedHomeDir(fixture.homeDir, (registerTitleIconImpl) =>
+        expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
+      );
 
       expect(titles).toEqual(["CFG Build Fix"]);
     } finally {
@@ -423,56 +441,33 @@ describe("config-backed title prefixes", () => {
     }
   });
 
-  it("loads config from process home rather than any removed env override", () => {
-    const fixture = createTempHome([
+  it("uses os.homedir as the single canonical home before within-home fallback", async () => {
+    const canonicalFixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: ["other:", "  value: true"].join("\n"),
+      },
+      {
+        relativePath: path.join(".omp", "agent", "settings.json"),
+        content: JSON.stringify({
+          ompTitleIcon: {
+            icons: { idle: "LEGACY", running: "LEG-RUN", ask: "LEG-ASK" },
+          },
+        }),
+      },
+    ]);
+    const homeFixture = createTempHome([
       {
         relativePath: path.join(".omp", "agent", "config.yml"),
         content: [
           "ompTitleIcon:",
           "  icons:",
-          '    idle: "REAL"',
-          '    running: "RUN"',
-          '    ask: "ASK"',
+          '    idle: "HOME"',
+          '    running: "HOME-RUN"',
+          '    ask: "HOME-ASK"',
         ].join("\n"),
       },
     ]);
-
-    try {
-      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle());
-
-      expect(titles).toEqual(["REAL Build Fix"]);
-    } finally {
-      fixture.cleanup();
-    }
-  });
-
-  it("falls back to USERPROFILE when HOME is an empty string", () => {
-    const fixture = createTempHome([
-      {
-        relativePath: path.join(".omp", "agent", "config.yml"),
-        content: [
-          "ompTitleIcon:",
-          "  icons:",
-          '    idle: "USR"',
-          '    running: "RUN"',
-          '    ask: "ASK"',
-        ].join("\n"),
-      },
-    ]);
-
-    try {
-      const { titles } = withProcessEnv(
-        { WT_SESSION: "abc", HOME: "", USERPROFILE: fixture.homeDir },
-        () => expectLoadedIdleTitle(),
-      );
-
-      expect(titles).toEqual(["USR Build Fix"]);
-    } finally {
-      fixture.cleanup();
-    }
-  });
-
-  it("falls back to USERPROFILE when HOME has no config files", () => {
     const userProfileFixture = createTempHome([
       {
         relativePath: path.join(".omp", "agent", "config.yml"),
@@ -480,105 +475,64 @@ describe("config-backed title prefixes", () => {
           "ompTitleIcon:",
           "  icons:",
           '    idle: "USR"',
-          '    running: "RUN"',
-          '    ask: "ASK"',
+          '    running: "USR-RUN"',
+          '    ask: "USR-ASK"',
         ].join("\n"),
       },
     ]);
-    const unusableHomeFixture = createTempHome([]);
 
     try {
-      const { titles } = withProcessEnv(
-        {
-          WT_SESSION: "abc",
-          HOME: unusableHomeFixture.homeDir,
-          USERPROFILE: userProfileFixture.homeDir,
-        },
-        () => expectLoadedIdleTitle(),
+      const { titles } = await withMockedHomeDir(canonicalFixture.homeDir, (registerTitleIconImpl) =>
+        withProcessEnv(
+          { HOME: homeFixture.homeDir, USERPROFILE: userProfileFixture.homeDir },
+          () => expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
+        ),
       );
 
-      expect(titles).toEqual(["USR Build Fix"]);
+      expect(titles).toEqual(["LEGACY Build Fix"]);
     } finally {
+      canonicalFixture.cleanup();
+      homeFixture.cleanup();
       userProfileFixture.cleanup();
-      unusableHomeFixture.cleanup();
     }
   });
 
-  it("falls back to USERPROFILE when HOME config.yml is malformed", () => {
-    const userProfileFixture = createTempHome([
-      {
-        relativePath: path.join(".omp", "agent", "config.yml"),
-        content: [
-          "ompTitleIcon:",
-          "  icons:",
-          '    idle: "USR"',
-          '    running: "RUN"',
-          '    ask: "ASK"',
-        ].join("\n"),
-      },
-    ]);
-    const malformedHomeFixture = createTempHome([
+  it("falls back safely when the canonical home config.yml is malformed", async () => {
+    const canonicalFixture = createTempHome([
       {
         relativePath: path.join(".omp", "agent", "config.yml"),
         content: "ompTitleIcon: [unterminated",
       },
     ]);
-
-    try {
-      const { titles } = withProcessEnv(
-        {
-          WT_SESSION: "abc",
-          HOME: malformedHomeFixture.homeDir,
-          USERPROFILE: userProfileFixture.homeDir,
-        },
-        () => expectLoadedIdleTitle(),
-      );
-
-      expect(titles).toEqual(["USR Build Fix"]);
-    } finally {
-      userProfileFixture.cleanup();
-      malformedHomeFixture.cleanup();
-    }
-  });
-
-  it("falls back to USERPROFILE when HOME settings.json lacks ompTitleIcon.icons", () => {
-    const userProfileFixture = createTempHome([
+    const envFixture = createTempHome([
       {
         relativePath: path.join(".omp", "agent", "config.yml"),
         content: [
           "ompTitleIcon:",
           "  icons:",
-          '    idle: "USR"',
-          '    running: "RUN"',
-          '    ask: "ASK"',
+          '    idle: "ENV"',
+          '    running: "ENV-RUN"',
+          '    ask: "ENV-ASK"',
         ].join("\n"),
-      },
-    ]);
-    const legacyHomeFixture = createTempHome([
-      {
-        relativePath: path.join(".omp", "agent", "settings.json"),
-        content: JSON.stringify({ legacy: true }),
       },
     ]);
 
     try {
-      const { titles } = withProcessEnv(
-        {
-          WT_SESSION: "abc",
-          HOME: legacyHomeFixture.homeDir,
-          USERPROFILE: userProfileFixture.homeDir,
-        },
-        () => expectLoadedIdleTitle(),
+      const { titles } = await withMockedHomeDir(canonicalFixture.homeDir, (registerTitleIconImpl) =>
+        withProcessEnv(
+          { HOME: envFixture.homeDir, USERPROFILE: envFixture.homeDir },
+          () => expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
+        ),
       );
 
-      expect(titles).toEqual(["USR Build Fix"]);
+      expect(titles).toEqual(["◆ Build Fix"]);
     } finally {
-      userProfileFixture.cleanup();
-      legacyHomeFixture.cleanup();
+      canonicalFixture.cleanup();
+      envFixture.cleanup();
     }
   });
 
-  it("falls back to os.homedir when HOME and USERPROFILE are missing", async () => {
+  it("loads config from os.homedir when HOME and USERPROFILE are missing", async () => {
     const fixture = createTempHome([
       {
         relativePath: path.join(".omp", "agent", "config.yml"),
@@ -593,25 +547,21 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      mock.module("node:os", () => ({
-        ...os,
-        homedir: () => fixture.homeDir,
-      }));
-      const freshExtension = await import(`../src/extension.ts?os-home-${Date.now()}`);
-      const { titles } = withProcessEnv(
-        {},
-        () => expectLoadedIdleTitle("Build Fix", freshExtension.default),
-        ["HOME", "USERPROFILE"],
+      const { titles } = await withMockedHomeDir(fixture.homeDir, (registerTitleIconImpl) =>
+        withProcessEnv(
+          {},
+          () => expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
+          ["HOME", "USERPROFILE"],
+        ),
       );
 
       expect(titles).toEqual(["OS Build Fix"]);
     } finally {
-      mock.restore();
       fixture.cleanup();
     }
   });
 
-  it("falls back to settings.json when config.yml has no ompTitleIcon.icons block", () => {
+  it("falls back to settings.json when config.yml has no ompTitleIcon.icons block", async () => {
     const fixture = createTempHome([
       {
         relativePath: path.join(".omp", "agent", "config.yml"),
@@ -628,7 +578,9 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle());
+      const { titles } = await withMockedHomeDir(fixture.homeDir, (registerTitleIconImpl) =>
+        expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
+      );
 
       expect(titles).toEqual(["LEGACY Build Fix"]);
     } finally {
@@ -636,7 +588,7 @@ describe("config-backed title prefixes", () => {
     }
   });
 
-  it("falls back per field for invalid values while preserving empty strings", () => {
+  it("falls back per field for invalid values while preserving empty strings", async () => {
     const fixture = createTempHome([
       {
         relativePath: path.join(".omp", "agent", "config.yml"),
@@ -649,14 +601,15 @@ describe("config-backed title prefixes", () => {
         ].join("\n"),
       },
     ]);
-    const { pi, handlers } = createFakePi("Build Fix");
-    const scheduler = createFakeScheduler();
-    const { ctx, titles } = createFakeContext();
 
     try {
-      withProcessHome(fixture.homeDir, () => {
+      const { pi, handlers } = createFakePi("Build Fix");
+      const scheduler = createFakeScheduler();
+      const { ctx, titles } = createFakeContext();
+
+      await withMockedHomeDir(fixture.homeDir, (registerTitleIconImpl) => {
         withProcessEnv({ WT_SESSION: "abc" }, () => {
-          registerTitleIcon(pi, {
+          registerTitleIconImpl(pi, {
             scheduler: scheduler.scheduler,
           });
         }, ["TERM"]);
@@ -675,7 +628,7 @@ describe("config-backed title prefixes", () => {
     }
   });
 
-  it("ignores settings.json when config.yml is malformed", () => {
+  it("ignores settings.json when config.yml is malformed", async () => {
     const fixture = createTempHome([
       {
         relativePath: path.join(".omp", "agent", "config.yml"),
@@ -692,7 +645,9 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle());
+      const { titles } = await withMockedHomeDir(fixture.homeDir, (registerTitleIconImpl) =>
+        expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
+      );
 
       expect(titles).toEqual(["◆ Build Fix"]);
     } finally {
@@ -700,7 +655,26 @@ describe("config-backed title prefixes", () => {
     }
   });
 
-  it("falls back safely when config parsing fails", () => {
+  it("falls back safely when settings.json parsing fails", async () => {
+    const fixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "settings.json"),
+        content: "{ invalid json",
+      },
+    ]);
+
+    try {
+      const { titles } = await withMockedHomeDir(fixture.homeDir, (registerTitleIconImpl) =>
+        expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
+      );
+
+      expect(titles).toEqual(["◆ Build Fix"]);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("falls back safely when config parsing fails", async () => {
     const fixture = createTempHome([
       {
         relativePath: path.join(".omp", "agent", "config.yml"),
@@ -709,7 +683,9 @@ describe("config-backed title prefixes", () => {
     ]);
 
     try {
-      const { titles } = withProcessHome(fixture.homeDir, () => expectLoadedIdleTitle());
+      const { titles } = await withMockedHomeDir(fixture.homeDir, (registerTitleIconImpl) =>
+        expectLoadedIdleTitle("Build Fix", registerTitleIconImpl),
+      );
 
       expect(titles).toEqual(["◆ Build Fix"]);
     } finally {
@@ -717,7 +693,7 @@ describe("config-backed title prefixes", () => {
     }
   });
 
-  it("uses loaded config.yml prefixes across the lifecycle", () => {
+  it("uses loaded config.yml prefixes across the lifecycle", async () => {
     const fixture = createTempHome([
       {
         relativePath: path.join(".omp", "agent", "config.yml"),
@@ -730,14 +706,15 @@ describe("config-backed title prefixes", () => {
         ].join("\n"),
       },
     ]);
-    const { pi, handlers } = createFakePi("Build Fix");
-    const scheduler = createFakeScheduler();
-    const { ctx, titles } = createFakeContext();
 
     try {
-      withProcessHome(fixture.homeDir, () => {
+      const { pi, handlers } = createFakePi("Build Fix");
+      const scheduler = createFakeScheduler();
+      const { ctx, titles } = createFakeContext();
+
+      await withMockedHomeDir(fixture.homeDir, (registerTitleIconImpl) => {
         withProcessEnv({ WT_SESSION: "abc" }, () => {
-          registerTitleIcon(pi, {
+          registerTitleIconImpl(pi, {
             scheduler: scheduler.scheduler,
           });
         }, ["TERM"]);
