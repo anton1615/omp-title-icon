@@ -135,6 +135,15 @@ describe("README contract", () => {
     expect(readmeText).toContain(
       "The title update remains best-effort: the configured prefixes are only visible when your terminal host accepts OSC title changes and does not immediately overwrite them.",
     );
+    expect(readmeText).toContain(
+      "Start a normal prompt. While the model is responding, the title should start with your configured running prefix.",
+    );
+    expect(readmeText).toContain(
+      "Use a prompt that triggers the `ask` tool. While the question is waiting for input, the title should start with your configured ask prefix.",
+    );
+    expect(readmeText).toContain(
+      "When the turn is idle again, the title should return to your configured idle prefix.",
+    );
   });
 });
 
