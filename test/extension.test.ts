@@ -389,6 +389,49 @@ describe("config-backed title prefixes", () => {
     }
   });
 
+  it("falls back to USERPROFILE when HOME has no config files", () => {
+    const userProfileFixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: [
+          "ompTitleIcon:",
+          "  icons:",
+          '    idle: "USR"',
+          '    running: "RUN"',
+          '    ask: "ASK"',
+        ].join("\n"),
+      },
+    ]);
+    const unusableHomeFixture = createTempHome([]);
+
+    const previousHome = process.env.HOME;
+    const previousUserProfile = process.env.USERPROFILE;
+
+    process.env.HOME = unusableHomeFixture.homeDir;
+    process.env.USERPROFILE = userProfileFixture.homeDir;
+
+    try {
+      const { titles } = expectLoadedIdleTitle({});
+
+      expect(titles).toEqual(["USR Build Fix"]);
+    } finally {
+      if (previousHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = previousHome;
+      }
+
+      if (previousUserProfile === undefined) {
+        delete process.env.USERPROFILE;
+      } else {
+        process.env.USERPROFILE = previousUserProfile;
+      }
+
+      userProfileFixture.cleanup();
+      unusableHomeFixture.cleanup();
+    }
+  });
+
   it("falls back to settings.json when config.yml has no ompTitleIcon.icons block", () => {
     const fixture = createTempHome([
       {

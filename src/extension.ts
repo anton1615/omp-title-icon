@@ -131,35 +131,53 @@ function parseConfiguredPrefixes(
   }
 }
 
-function resolveHomeDir(): string | undefined {
+function resolveHomeDirs(): string[] {
+  const homeDirs: string[] = [];
+
   for (const candidate of [process.env.HOME, process.env.USERPROFILE]) {
-    if (candidate !== undefined && candidate !== "") {
-      return candidate;
+    if (candidate === undefined || candidate === "" || homeDirs.includes(candidate)) {
+      continue;
     }
+
+    homeDirs.push(candidate);
+  }
+
+  return homeDirs;
+}
+
+function loadTitlePrefixesFromHome(homeDir: string): TitlePrefixes | undefined {
+  const configPath = path.join(homeDir, ...CONFIG_RELATIVE_PATH);
+  const configText = defaultReadText(configPath);
+  if (configText !== undefined) {
+    const configPrefixes = parseConfiguredPrefixes(configText, "yaml");
+    if (configPrefixes.kind === "parsed") {
+      return configPrefixes.prefixes;
+    }
+    if (configPrefixes.kind === "parse-error") {
+      return { ...DEFAULT_TITLE_PREFIXES };
+    }
+  }
+
+  const settingsPath = path.join(homeDir, ...LEGACY_SETTINGS_RELATIVE_PATH);
+  const settingsText = defaultReadText(settingsPath);
+  if (settingsText !== undefined) {
+    const legacyPrefixes = parseConfiguredPrefixes(settingsText, "json");
+    if (legacyPrefixes.kind === "parsed") {
+      return legacyPrefixes.prefixes;
+    }
+
+    return { ...DEFAULT_TITLE_PREFIXES };
   }
 
   return undefined;
 }
 
 function loadTitlePrefixes(): TitlePrefixes {
-  const homeDir = resolveHomeDir();
-  if (!homeDir) {
-    return { ...DEFAULT_TITLE_PREFIXES };
-  }
-
-  const configPath = path.join(homeDir, ...CONFIG_RELATIVE_PATH);
-  const configPrefixes = parseConfiguredPrefixes(defaultReadText(configPath) ?? "", "yaml");
-  if (configPrefixes.kind === "parsed") {
-    return configPrefixes.prefixes;
-  }
-  if (configPrefixes.kind === "parse-error") {
-    return { ...DEFAULT_TITLE_PREFIXES };
-  }
-
-  const settingsPath = path.join(homeDir, ...LEGACY_SETTINGS_RELATIVE_PATH);
-  const legacyPrefixes = parseConfiguredPrefixes(defaultReadText(settingsPath) ?? "", "json");
-  if (legacyPrefixes.kind === "parsed") {
-    return legacyPrefixes.prefixes;
+  for (const homeDir of resolveHomeDirs()) {
+    const loadedPrefixes = loadTitlePrefixesFromHome(homeDir);
+    if (loadedPrefixes !== undefined) {
+      return loadedPrefixes;
+    }
   }
 
   return { ...DEFAULT_TITLE_PREFIXES };
