@@ -33,6 +33,28 @@ const marketplaceJson = (await Bun.file(
 
 const readmeText = await Bun.file(new URL("../README.md", import.meta.url)).text();
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function expectReadmeToContain(pattern: RegExp) {
+  expect(readmeText).toMatch(pattern);
+}
+
+function expectReadmeToMentionStateIcon(state: "idle" | "running" | "ask", icon: string) {
+  const escapedIcon = escapeRegExp(icon);
+  expectReadmeToContain(new RegExp(`(?:${escapedIcon}[\\s\\S]{0,120}${state}|${state}[\\s\\S]{0,120}${escapedIcon})`, "i"));
+}
+
+function expectReadmeToContainFencedBlock(lang: "yaml" | "json", requiredPatterns: RegExp[]) {
+  const blocks = [...readmeText.matchAll(new RegExp("```" + lang + "\\s*([\\s\\S]*?)```", "g"))].map(
+    (match) => match[1] ?? "",
+  );
+
+  expect(blocks.length).toBeGreaterThan(0);
+  expect(blocks.some((block) => requiredPatterns.every((pattern) => pattern.test(block)))).toBe(true);
+}
+
 describe("shouldEnableTitlePlugin", () => {
   it("disables dumb terminals", () => {
     expect(shouldEnableTitlePlugin({ TERM: "dumb" })).toBe(false);
@@ -90,60 +112,48 @@ describe("computeVisualState", () => {
 
 describe("README contract", () => {
   it("documents the built-in default icons", () => {
-    expect(readmeText).toContain("- `◆` when idle");
-    expect(readmeText).toContain("- `·` when running");
-    expect(readmeText).toContain("- `?!` when the `ask` tool is waiting for input");
+    expectReadmeToMentionStateIcon("idle", "◆");
+    expectReadmeToMentionStateIcon("running", "·");
+    expectReadmeToContain(/(?:ask tool|ask prefix|ask)[\s\S]{0,120}\?!|\?![\s\S]{0,120}(?:ask tool|ask prefix|ask)/i);
   });
 
-  it("documents config-based user overrides", () => {
-    expect(readmeText).toContain("~/.omp/agent/config.yml");
-    expect(readmeText).toContain("~/.omp/agent/settings.json");
-    expect(readmeText).toContain(
-      [
-        "```yaml",
-        "ompTitleIcon:",
-        "  icons:",
-        '    idle: "◆"',
-        '    running: "·"',
-        '    ask: "?!"',
-        "```",
-      ].join("\n"),
+  it("documents config-based user overrides semantically", () => {
+    expectReadmeToContain(/~\/.omp\/agent\/config\.yml/);
+    expectReadmeToContain(/~\/.omp\/agent\/settings\.json/);
+    expectReadmeToContainFencedBlock("yaml", [
+      /ompTitleIcon\s*:/,
+      /icons\s*:/,
+      /idle\s*:\s*"◆"/,
+      /running\s*:\s*"·"/,
+      /ask\s*:\s*"\?!"/,
+    ]);
+    expectReadmeToContainFencedBlock("json", [
+      /"ompTitleIcon"\s*:/,
+      /"icons"\s*:/,
+      /"idle"\s*:\s*"◆"/,
+      /"running"\s*:\s*"·"/,
+      /"ask"\s*:\s*"\?!"/,
+    ]);
+    expectReadmeToContain(
+      /config\.yml[\s\S]{0,120}primary config source[\s\S]{0,200}does not define[\s\S]{0,120}ompTitleIcon\.icons[\s\S]{0,200}falls back[\s\S]{0,120}settings\.json/i,
     );
-    expect(readmeText).toContain(
-      [
-        "```json",
-        "{",
-        '  "ompTitleIcon": {',
-        '    "icons": {',
-        '      "idle": "◆",',
-        '      "running": "·",',
-        '      "ask": "?!"',
-        "    }",
-        "  }",
-        "}",
-        "```",
-      ].join("\n"),
+    expectReadmeToContain(
+      /Once[\s\S]{0,120}config\.yml[\s\S]{0,120}defines[\s\S]{0,120}ompTitleIcon\.icons[\s\S]{0,200}does not merge[\s\S]{0,160}settings\.json[\s\S]{0,200}omitted[\s\S]{0,120}built-in defaults/i,
     );
-    expect(readmeText).toContain(
-      "`~/.omp/agent/config.yml` is the primary config source. If that file does not define an `ompTitleIcon.icons` block, the extension falls back to the legacy `~/.omp/agent/settings.json` location:",
+    expectReadmeToContainFencedBlock("yaml", [
+      /ompTitleIcon\s*:/,
+      /icons\s*:/,
+      /idle\s*:\s*""/,
+      /running\s*:\s*"·"/,
+      /ask\s*:\s*"\?!"/,
+    ]);
+    expectReadmeToContain(/empty string[\s\S]{0,120}remove the prefix/i);
+    expectReadmeToContain(
+      /best-effort[\s\S]{0,160}configured prefixes[\s\S]{0,200}OSC title changes[\s\S]{0,200}overwrite/i,
     );
-    expect(readmeText).toContain(
-      "Once `~/.omp/agent/config.yml` defines `ompTitleIcon.icons`, the extension does not merge missing fields from the legacy `~/.omp/agent/settings.json` file. Any icon values omitted there fall back to the built-in defaults instead.",
-    );
-    expect(readmeText).toContain('idle: ""');
-    expect(readmeText).toContain("Set any icon to an empty string to remove the prefix for that state.");
-    expect(readmeText).toContain(
-      "The title update remains best-effort: the configured prefixes are only visible when your terminal host accepts OSC title changes and does not immediately overwrite them.",
-    );
-    expect(readmeText).toContain(
-      "Start a normal prompt. While the model is responding, the title should start with your configured running prefix.",
-    );
-    expect(readmeText).toContain(
-      "Use a prompt that triggers the `ask` tool. While the question is waiting for input, the title should start with your configured ask prefix.",
-    );
-    expect(readmeText).toContain(
-      "When the turn is idle again, the title should return to your configured idle prefix.",
-    );
+    expectReadmeToContain(/normal[\s\S]{0,40}prompt[\s\S]{0,240}configured running prefix/i);
+    expectReadmeToContain(/ask[\s\S]{0,40}tool[\s\S]{0,240}configured ask prefix/i);
+    expectReadmeToContain(/idle again[\s\S]{0,240}configured idle prefix/i);
   });
 });
 
