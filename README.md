@@ -5,7 +5,7 @@ Best-effort cross-platform terminal title status extension for Oh My Pi / Pi cod
 It prefixes the visible terminal title with:
 
 - `✳` when idle
-- `⟳` when running
+- `⟳` when running, including while OMP is compacting the session
 - `?!` when the `ask` tool is waiting for input
 
 ## User overrides
@@ -108,8 +108,9 @@ bun --cwd <path-to-oh-my-pi>/packages/coding-agent src/cli.ts --extension <path-
 ```
 
 4. Start a normal prompt. While the model is responding, the title should start with your configured running prefix.
-5. Use a prompt that triggers the `ask` tool. While the question is waiting for input, the title should start with your configured ask prefix.
-6. When the turn is idle again, the title should return to your configured idle prefix.
+5. Trigger a compact cycle. While OMP is compacting the session, the title should keep the configured running prefix.
+6. Use a prompt that triggers the `ask` tool. While the question is waiting for input, the title should start with your configured ask prefix.
+7. When the turn is idle again, the title should return to your configured idle prefix.
 
 ## Troubleshooting
 

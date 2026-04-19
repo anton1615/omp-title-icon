@@ -34,9 +34,14 @@ interface TitlePrefixes {
 export interface TitleControllerState {
   agentRunning: boolean;
   askDepth: number;
+  isShutdown: boolean;
   reassertTimer: NodeJS.Timeout | undefined;
   reassertUntil: number;
   lastAppliedTitle: string | undefined;
+}
+
+interface InternalTitleControllerState extends TitleControllerState {
+  isCompacting: boolean;
 }
 
 export interface TitleScheduler {
@@ -246,10 +251,13 @@ export function computeBaseTitle(
   return baseName;
 }
 
-export function computeVisualState(
-  agentRunning: boolean,
-  askDepth: number,
-): TitleIconState {
+function hasRunningTitleSource(
+  state: Pick<InternalTitleControllerState, "agentRunning" | "isCompacting">,
+ ): boolean {
+  return state.agentRunning || state.isCompacting;
+}
+
+export function computeVisualState(agentRunning: boolean, askDepth: number): TitleIconState {
   if (askDepth > 0) {
     return "ask";
   }
@@ -259,6 +267,13 @@ export function computeVisualState(
   }
 
   return "idle";
+}
+function setCompactingState(state: InternalTitleControllerState, isCompacting: boolean): void {
+  if (state.isShutdown) {
+    return;
+  }
+
+  state.isCompacting = isCompacting;
 }
 
 function formatTitle(prefix: string, baseTitle: string): string {
@@ -284,14 +299,14 @@ function renderTitleWithPrefixes(
 function applyTitle(
   pi: Pick<ExtensionAPI, "getSessionName">,
   ctx: Pick<ExtensionContext, "cwd" | "ui">,
-  state: TitleControllerState,
+  state: InternalTitleControllerState,
   prefixes: TitlePrefixes,
   options: { force?: boolean } = {},
 ): void {
   const baseTitle = computeBaseTitle(pi.getSessionName(), ctx.cwd);
   const nextTitle = renderTitleWithPrefixes(
     baseTitle,
-    computeVisualState(state.agentRunning, state.askDepth),
+    computeVisualState(hasRunningTitleSource(state), state.askDepth),
     prefixes,
   );
 
@@ -303,7 +318,7 @@ function applyTitle(
   state.lastAppliedTitle = nextTitle;
 }
 
-function stopReassert(state: TitleControllerState, scheduler: TitleScheduler): void {
+function stopReassert(state: InternalTitleControllerState, scheduler: TitleScheduler): void {
   if (!state.reassertTimer) {
     return;
   }
@@ -315,17 +330,26 @@ function stopReassert(state: TitleControllerState, scheduler: TitleScheduler): v
 function startReassert(
   pi: Pick<ExtensionAPI, "getSessionName">,
   ctx: Pick<ExtensionContext, "cwd" | "ui">,
-  state: TitleControllerState,
+  state: InternalTitleControllerState,
   scheduler: TitleScheduler,
   prefixes: TitlePrefixes,
 ): void {
+  if (state.isShutdown) {
+    return;
+  }
+
   stopReassert(state, scheduler);
   state.reassertUntil = scheduler.now() + REASSERT_DURATION_MS;
 
   applyTitle(pi, ctx, state, prefixes, { force: true });
 
   state.reassertTimer = scheduler.setInterval(() => {
-    if (scheduler.now() >= state.reassertUntil) {
+    if (state.isShutdown) {
+      stopReassert(state, scheduler);
+      return;
+    }
+
+    if (!hasRunningTitleSource(state) && scheduler.now() >= state.reassertUntil) {
       stopReassert(state, scheduler);
       return;
     }
@@ -355,9 +379,11 @@ export default function registerTitleIcon(
   }
 
   const prefixes = loadTitlePrefixes();
-  const state: TitleControllerState = {
+  const state: InternalTitleControllerState = {
     agentRunning: false,
+    isCompacting: false,
     askDepth: 0,
+    isShutdown: false,
     reassertTimer: undefined,
     reassertUntil: 0,
     lastAppliedTitle: undefined,
@@ -380,6 +406,25 @@ export default function registerTitleIcon(
   pi.on("agent_end", (_event: unknown, ctx: ExtensionContext) => {
     state.agentRunning = false;
     startReassert(pi, ctx, state, scheduler, prefixes);
+  });
+
+  pi.on("session_before_compact", (_event: unknown, ctx: ExtensionContext) => {
+    setCompactingState(state, true);
+    startReassert(pi, ctx, state, scheduler, prefixes);
+  });
+
+  pi.on("session_compact", (_event: unknown, ctx: ExtensionContext) => {
+    setCompactingState(state, false);
+    startReassert(pi, ctx, state, scheduler, prefixes);
+  });
+
+
+  pi.on("session_shutdown", () => {
+    state.isShutdown = true;
+    state.agentRunning = false;
+    state.isCompacting = false;
+    state.askDepth = 0;
+    stopReassert(state, scheduler);
   });
 
   pi.on("tool_execution_start", (event: unknown, ctx: ExtensionContext) => {

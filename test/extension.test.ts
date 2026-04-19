@@ -9,6 +9,8 @@ import registerTitleIcon, {
   type ExtensionAPI,
   type ExtensionContext,
   type RegisterTitleIconOptions,
+  type TitleControllerState,
+  type TitleIconState,
   type TitleScheduler,
 } from "../src/extension";
 import * as extensionModule from "../src/extension";
@@ -61,6 +63,21 @@ function extractReadmeFencedBlocks(markdown: string, lang: "yaml" | "json") {
     (match) => match[1] ?? "",
   );
 }
+
+type Assert<T extends true> = T;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+  ? true
+  : false;
+type HasKey<T, K extends PropertyKey> = K extends keyof T ? true : false;
+
+type _TitleControllerStateDoesNotExposeCompact = Assert<
+  Equal<HasKey<TitleControllerState, "isCompacting">, false>
+  >;
+type _ComputeVisualStateKeepsPublicSignature = Assert<
+  Equal<Parameters<typeof computeVisualState>, [boolean, number]>
+  >;
+const computeVisualStateReturnTypeCheck: TitleIconState = computeVisualState(false, 0);
+void computeVisualStateReturnTypeCheck;
 
 function expectReadmeSectionToMentionStateIcon(
   sectionText: string,
@@ -134,7 +151,7 @@ describe("computeBaseTitle", () => {
 });
 
 describe("computeVisualState", () => {
-  it("gives ask priority over running", () => {
+  it("gives ask priority over agent running", () => {
     expect(computeVisualState(true, 1)).toBe("ask");
   });
 
@@ -211,6 +228,10 @@ describe("public module surface", () => {
 
   it("does not expose renderTitle as a public helper", () => {
     expect(extensionModule).not.toHaveProperty("renderTitle");
+  });
+
+  it("does not expose compact state helpers as public exports", () => {
+    expect(extensionModule).not.toHaveProperty("setCompactingState");
   });
 });
 
@@ -941,7 +962,159 @@ describe("registerTitleIcon", () => {
     expect(titles).toEqual(["✳ Build Fix", "✳ Build Fix"]);
   });
 
-  it("force-reasserts the same title during the takeover window and then stops", () => {
+  it("keeps a running-only heartbeat alive until the agent stops", () => {
+    const { pi, handlers } = createFakePi("Build Fix");
+    const scheduler = createFakeScheduler();
+    const { ctx, titles } = createFakeContext();
+
+    withProcessEnv({ WT_SESSION: "abc" }, () => {
+      registerTitleIcon(pi, {
+        scheduler: scheduler.scheduler,
+      });
+    }, ["TERM"]);
+
+    handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
+    expect(titles).toEqual(["⟳ Build Fix"]);
+    expect(scheduler.hasInterval).toBe(true);
+
+    scheduler.advance(250);
+    scheduler.advance(2000);
+    expect(titles).toEqual([
+      "⟳ Build Fix",
+      "⟳ Build Fix",
+      "⟳ Build Fix",
+    ]);
+    expect(scheduler.hasInterval).toBe(true);
+
+    handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
+    expect(titles[titles.length - 1]).toBe("✳ Build Fix");
+
+    const writesBeforeStopWindow = titles.length;
+    scheduler.advance(250);
+    scheduler.advance(250);
+    scheduler.advance(2000);
+    expect(scheduler.hasInterval).toBe(false);
+    expect(titles.length).toBeGreaterThan(writesBeforeStopWindow);
+
+    const writesAfterStop = titles.length;
+    scheduler.advance(250);
+    scheduler.advance(2000);
+    expect(titles).toHaveLength(writesAfterStop);
+  });
+
+  it("shows running during compact and returns to idle when compact ends", () => {
+    const { pi, handlers } = createFakePi("Build Fix");
+    const scheduler = createFakeScheduler();
+    const { ctx, titles } = createFakeContext();
+
+    withProcessEnv({ WT_SESSION: "abc" }, () => {
+      registerTitleIcon(pi, {
+        scheduler: scheduler.scheduler,
+      });
+    }, ["TERM"]);
+
+    handlers.get("session_start")?.({ type: "session_start" }, ctx);
+    handlers.get("session_before_compact")?.({ type: "session_before_compact" }, ctx);
+    handlers.get("session_compact")?.({ type: "session_compact" }, ctx);
+
+    expect(titles).toEqual(["✳ Build Fix", "⟳ Build Fix", "✳ Build Fix"]);
+  });
+
+  it("keeps running after compact ends when the agent is still active", () => {
+    const { pi, handlers } = createFakePi("Build Fix");
+    const scheduler = createFakeScheduler();
+    const { ctx, titles } = createFakeContext();
+
+    withProcessEnv({ WT_SESSION: "abc" }, () => {
+      registerTitleIcon(pi, {
+        scheduler: scheduler.scheduler,
+      });
+    }, ["TERM"]);
+
+    handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
+    handlers.get("session_before_compact")?.({ type: "session_before_compact" }, ctx);
+    handlers.get("session_compact")?.({ type: "session_compact" }, ctx);
+
+    expect(titles).toEqual(["⟳ Build Fix", "⟳ Build Fix", "⟳ Build Fix"]);
+  });
+
+  it("restores compact-running after ask ends during compact", () => {
+    const { pi, handlers } = createFakePi("Build Fix");
+    const scheduler = createFakeScheduler();
+    const { ctx, titles } = createFakeContext();
+
+    withProcessEnv({ WT_SESSION: "abc" }, () => {
+      registerTitleIcon(pi, {
+        scheduler: scheduler.scheduler,
+      });
+    }, ["TERM"]);
+
+    handlers.get("session_before_compact")?.({ type: "session_before_compact" }, ctx);
+    handlers.get("tool_execution_start")?.({ type: "tool_execution_start", toolName: "ask" }, ctx);
+    handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
+    handlers.get("session_compact")?.({ type: "session_compact" }, ctx);
+
+    expect(titles).toEqual(["⟳ Build Fix", "?! Build Fix", "⟳ Build Fix", "✳ Build Fix"]);
+  });
+
+
+  it("stops the running heartbeat on session_shutdown", () => {
+    const { pi, handlers } = createFakePi("Build Fix");
+    const scheduler = createFakeScheduler();
+    const { ctx, titles } = createFakeContext();
+
+    withProcessEnv({ WT_SESSION: "abc" }, () => {
+      registerTitleIcon(pi, {
+        scheduler: scheduler.scheduler,
+      });
+    }, ["TERM"]);
+
+    handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
+    expect(scheduler.hasInterval).toBe(true);
+
+    scheduler.advance(250);
+    const writesBeforeShutdown = titles.length;
+
+    handlers.get("session_shutdown")?.({ type: "session_shutdown" }, ctx);
+    expect(scheduler.hasInterval).toBe(false);
+    expect(titles).toHaveLength(writesBeforeShutdown);
+
+    scheduler.advance(250);
+    scheduler.advance(2000);
+    expect(titles).toHaveLength(writesBeforeShutdown);
+  });
+
+  it("ignores late compact events after session_shutdown", () => {
+    const { pi, handlers } = createFakePi("Build Fix");
+    const scheduler = createFakeScheduler();
+    const { ctx, titles } = createFakeContext();
+
+    withProcessEnv({ WT_SESSION: "abc" }, () => {
+      registerTitleIcon(pi, {
+        scheduler: scheduler.scheduler,
+      });
+    }, ["TERM"]);
+
+    handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
+    handlers.get("session_shutdown")?.({ type: "session_shutdown" }, ctx);
+    const writesAfterShutdown = titles.length;
+
+    handlers.get("session_before_compact")?.({ type: "session_before_compact" }, ctx);
+    expect(scheduler.hasInterval).toBe(false);
+    expect(titles).toHaveLength(writesAfterShutdown);
+
+    handlers.get("session_compact")?.({ type: "session_compact" }, ctx);
+    expect(scheduler.hasInterval).toBe(false);
+    expect(titles).toHaveLength(writesAfterShutdown);
+
+    scheduler.advance(250);
+    scheduler.advance(2000);
+
+    expect(scheduler.hasInterval).toBe(false);
+    expect(titles).toHaveLength(writesAfterShutdown);
+  });
+
+  it("does not leave a persistent heartbeat after session_start", () => {
     const { pi, handlers } = createFakePi("Build Fix");
     const scheduler = createFakeScheduler();
     const { ctx, titles } = createFakeContext();
@@ -962,5 +1135,10 @@ describe("registerTitleIcon", () => {
 
     scheduler.advance(2000);
     expect(scheduler.hasInterval).toBe(false);
+
+    const writesAfterStop = titles.length;
+    scheduler.advance(250);
+    scheduler.advance(2000);
+    expect(titles).toHaveLength(writesAfterStop);
   });
 });
