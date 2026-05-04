@@ -169,7 +169,8 @@ describe("README contract", () => {
     const introSection = extractReadmeIntro(readmeText);
 
     expectReadmeSectionToMentionStateIcon(introSection, "idle", "✳");
-    expectReadmeSectionToMentionStateIcon(introSection, "running", "⟳");
+    expectReadmeSectionToMentionStateIcon(introSection, "running", "⠂");
+    expectReadmeSectionToMentionStateIcon(introSection, "running", "⠐");
     expect(introSection).toMatch(/(?:ask tool|ask prefix|ask)[\s\S]{0,120}\?!|\?![\s\S]{0,120}(?:ask tool|ask prefix|ask)/i);
     expect(introSection).not.toContain("✳\uFE0F");
   });
@@ -759,7 +760,43 @@ describe("config-backed title prefixes", () => {
         );
       });
 
-      expect(titles).toEqual(["Build Fix", "⟳ Build Fix", "ASK Build Fix"]);
+      expect(titles).toEqual(["Build Fix", "⠂ Build Fix", "ASK Build Fix"]);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("keeps built-in running animation when config omits running", async () => {
+    const fixture = createTempHome([
+      {
+        relativePath: path.join(".omp", "agent", "config.yml"),
+        content: [
+          "ompTitleIcon:",
+          "  icons:",
+          '    idle: "IDLE"',
+          '    ask: "ASK"',
+        ].join("\n"),
+      },
+    ]);
+
+    try {
+      const { pi, handlers } = createFakePi("Build Fix");
+      const scheduler = createFakeScheduler();
+      const { ctx, titles } = createFakeContext();
+
+      await withMockedHomeDir(fixture.homeDir, (registerTitleIconImpl) => {
+        withProcessEnv({ WT_SESSION: "abc" }, () => {
+          registerTitleIconImpl(pi, {
+            scheduler: scheduler.scheduler,
+          });
+        }, ["TERM"]);
+
+        handlers.get("session_start")?.({ type: "session_start" }, ctx);
+        handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
+        scheduler.advance(960);
+      });
+
+      expect(titles).toEqual(["IDLE Build Fix", "⠂ Build Fix", "⠐ Build Fix"]);
     } finally {
       fixture.cleanup();
     }
@@ -913,9 +950,9 @@ describe("registerTitleIcon", () => {
     handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
 
     expect(titles[0]).toBe("✳ Build Fix");
-    expect(titles[1]).toBe("⟳ Build Fix");
+    expect(titles[1]).toBe("⠂ Build Fix");
     expect(titles[2]).toBe("?! Build Fix");
-    expect(titles[3]).toBe("⟳ Build Fix");
+    expect(titles[3]).toBe("⠂ Build Fix");
     expect(titles[4]).toBe("✳ Build Fix");
   });
 
@@ -939,9 +976,9 @@ describe("registerTitleIcon", () => {
     handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
 
     expect(titles[0]).toBe("✳ Build Fix");
-    expect(titles[1]).toBe("⟳ Build Fix");
+    expect(titles[1]).toBe("⠂ Build Fix");
     expect(titles[2]).toBe("?! Build Fix");
-    expect(titles[3]).toBe("⟳ Build Fix");
+    expect(titles[3]).toBe("⠂ Build Fix");
     expect(titles[4]).toBe("✳ Build Fix");
   });
 
@@ -962,7 +999,7 @@ describe("registerTitleIcon", () => {
     expect(titles).toEqual(["✳ Build Fix", "✳ Build Fix"]);
   });
 
-  it("keeps a running-only heartbeat alive until the agent stops", () => {
+  it("animates the running title frame while reasserting until the agent stops", () => {
     const { pi, handlers } = createFakePi("Build Fix");
     const scheduler = createFakeScheduler();
     const { ctx, titles } = createFakeContext();
@@ -974,20 +1011,21 @@ describe("registerTitleIcon", () => {
     }, ["TERM"]);
 
     handlers.get("agent_start")?.({ type: "agent_start" }, ctx);
-    expect(titles).toEqual(["⟳ Build Fix"]);
+    expect(titles).toEqual(["⠂ Build Fix"]);
     expect(scheduler.hasInterval).toBe(true);
 
     scheduler.advance(250);
-    scheduler.advance(2000);
-    expect(titles).toEqual([
-      "⟳ Build Fix",
-      "⟳ Build Fix",
-      "⟳ Build Fix",
-    ]);
+    expect(titles.at(-1)).toBe("⠂ Build Fix");
+
+    scheduler.advance(710);
+    expect(titles.at(-1)).toBe("⠐ Build Fix");
+
+    scheduler.advance(960);
+    expect(titles.at(-1)).toBe("⠂ Build Fix");
     expect(scheduler.hasInterval).toBe(true);
 
     handlers.get("agent_end")?.({ type: "agent_end" }, ctx);
-    expect(titles[titles.length - 1]).toBe("✳ Build Fix");
+    expect(titles.at(-1)).toBe("✳ Build Fix");
 
     const writesBeforeStopWindow = titles.length;
     scheduler.advance(250);
@@ -1017,7 +1055,7 @@ describe("registerTitleIcon", () => {
     handlers.get("session_before_compact")?.({ type: "session_before_compact" }, ctx);
     handlers.get("session_compact")?.({ type: "session_compact" }, ctx);
 
-    expect(titles).toEqual(["✳ Build Fix", "⟳ Build Fix", "✳ Build Fix"]);
+    expect(titles).toEqual(["✳ Build Fix", "⠂ Build Fix", "✳ Build Fix"]);
   });
 
   it("keeps running after compact ends when the agent is still active", () => {
@@ -1035,7 +1073,7 @@ describe("registerTitleIcon", () => {
     handlers.get("session_before_compact")?.({ type: "session_before_compact" }, ctx);
     handlers.get("session_compact")?.({ type: "session_compact" }, ctx);
 
-    expect(titles).toEqual(["⟳ Build Fix", "⟳ Build Fix", "⟳ Build Fix"]);
+    expect(titles).toEqual(["⠂ Build Fix", "⠂ Build Fix", "⠂ Build Fix"]);
   });
 
   it("restores compact-running after ask ends during compact", () => {
@@ -1054,7 +1092,7 @@ describe("registerTitleIcon", () => {
     handlers.get("tool_execution_end")?.({ type: "tool_execution_end", toolName: "ask" }, ctx);
     handlers.get("session_compact")?.({ type: "session_compact" }, ctx);
 
-    expect(titles).toEqual(["⟳ Build Fix", "?! Build Fix", "⟳ Build Fix", "✳ Build Fix"]);
+    expect(titles).toEqual(["⠂ Build Fix", "?! Build Fix", "⠂ Build Fix", "✳ Build Fix"]);
   });
 
 

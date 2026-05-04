@@ -5,12 +5,12 @@ Best-effort cross-platform terminal title status extension for Oh My Pi / Pi cod
 It prefixes the visible terminal title with:
 
 - `✳` when idle
-- `⟳` when running, including while OMP is compacting the session
+- `⠂` / `⠐` alternating while running, including while OMP is compacting the session
 - `?!` when the `ask` tool is waiting for input
 
 ## User overrides
 
-By default the extension uses `✳` for idle, `⟳` for running, and `?!` while the `ask` tool is waiting for input.
+By default the extension uses `✳` for idle, alternates `⠂` / `⠐` while running, and uses `?!` while the `ask` tool is waiting for input. Configure `icons.running` to use a static running prefix instead.
 
 For per-user overrides, define `ompTitleIcon.icons` in `~/.omp/agent/config.yml`:
 
@@ -86,7 +86,7 @@ Add the plugin root as an explicit extension path in `.omp/settings.json`:
 
 ## What it does
 
-The extension subscribes to session, agent, and tool lifecycle events, computes the visible title from `session name -> cwd basename -> π`, and writes it through OSC-compatible terminal title updates while briefly force-reasserting the same title for 2 seconds after key state transitions.
+The extension subscribes to session, agent, and tool lifecycle events, computes the visible title from `session name -> cwd basename -> π`, and writes it through OSC-compatible terminal title updates. It briefly force-reasserts idle titles after key state transitions, and keeps reasserting animated running/ask titles until those states end.
 
 This is a best-effort takeover strategy. It improves title stability, but does not guarantee permanent ownership if your terminal ignores OSC title writes or another tool continuously rewrites the title.
 
@@ -107,8 +107,8 @@ bun run check
 bun --cwd <path-to-oh-my-pi>/packages/coding-agent src/cli.ts --extension <path-to-omp-title-icon>
 ```
 
-4. Start a normal prompt. While the model is responding, the title should start with your configured running prefix.
-5. Trigger a compact cycle. While OMP is compacting the session, the title should keep the configured running prefix.
+4. Start a normal prompt. While the model is responding, the title should alternate between the built-in running frames or keep your configured running prefix.
+5. Trigger a compact cycle. While OMP is compacting the session, the title should keep the same running animation or configured running prefix.
 6. Use a prompt that triggers the `ask` tool. While the question is waiting for input, the title should start with your configured ask prefix.
 7. When the turn is idle again, the title should return to your configured idle prefix.
 

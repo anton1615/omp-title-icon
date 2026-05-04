@@ -29,6 +29,7 @@ interface TitlePrefixes {
   idle: string;
   running: string;
   ask: string;
+  runningFrames: string[];
 }
 
 export interface TitleControllerState {
@@ -42,6 +43,8 @@ export interface TitleControllerState {
 
 interface InternalTitleControllerState extends TitleControllerState {
   isCompacting: boolean;
+  runningFrameIndex: number;
+  runningFrameUpdatedAt: number | undefined;
 }
 
 export interface TitleScheduler {
@@ -56,10 +59,11 @@ export interface RegisterTitleIconOptions {
 
 const REASSERT_DURATION_MS = 2000;
 const REASSERT_INTERVAL_MS = 250;
+const RUNNING_FRAME_INTERVAL_MS = 960;
 const ASK_TOOL_NAME = "ask";
 const DEFAULT_FALLBACK_TITLE = "π";
 
-const DEFAULT_TITLE_PREFIXES: TitlePrefixes = { idle: "✳", running: "⟳", ask: "?!" }
+const DEFAULT_TITLE_PREFIXES: TitlePrefixes = { idle: "✳", running: "⟳", runningFrames: ["⠂", "⠐"], ask: "?!" }
 const defaultScheduler: TitleScheduler = {
   now: () => Date.now(),
   setInterval: (callback, intervalMs) => setInterval(callback, intervalMs),
@@ -123,15 +127,31 @@ function extractConfiguredIcons(config: unknown): ExtractConfiguredIconsResult {
 function normalizePrefix(value: unknown, fallback: string): string {
   return typeof value === "string" ? value : fallback;
 }
+function normalizeRunningFrames(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) {
+    return [...fallback];
+  }
+
+  const frames = value.filter((frame): frame is string => typeof frame === "string");
+  return frames.length > 0 ? frames : [...fallback];
+}
+
 
 function normalizeTitlePrefixes(configuredIcons: unknown): TitlePrefixes {
   if (!isRecord(configuredIcons)) {
-    return { ...DEFAULT_TITLE_PREFIXES };
+    return {
+      ...DEFAULT_TITLE_PREFIXES,
+      runningFrames: [...DEFAULT_TITLE_PREFIXES.runningFrames],
+    };
   }
+
+  const hasConfiguredStaticRunning = typeof configuredIcons.running === "string";
+  const fallbackRunningFrames = hasConfiguredStaticRunning ? [] : DEFAULT_TITLE_PREFIXES.runningFrames;
 
   return {
     idle: normalizePrefix(configuredIcons.idle, DEFAULT_TITLE_PREFIXES.idle),
     running: normalizePrefix(configuredIcons.running, DEFAULT_TITLE_PREFIXES.running),
+    runningFrames: normalizeRunningFrames(configuredIcons.runningFrames, fallbackRunningFrames),
     ask: normalizePrefix(configuredIcons.ask, DEFAULT_TITLE_PREFIXES.ask),
   };
 }
@@ -154,7 +174,10 @@ function parseConfiguredPrefixes(
 
     const prefixes =
       configuredIcons.kind === "invalid-structure"
-        ? { ...DEFAULT_TITLE_PREFIXES }
+        ? {
+            ...DEFAULT_TITLE_PREFIXES,
+            runningFrames: [...DEFAULT_TITLE_PREFIXES.runningFrames],
+          }
         : normalizeTitlePrefixes(configuredIcons.icons);
 
     return { kind: "parsed", prefixes };
@@ -203,7 +226,10 @@ function loadTitlePrefixes(): TitlePrefixes {
     return loadedPrefixes;
   }
 
-  return { ...DEFAULT_TITLE_PREFIXES };
+  return {
+    ...DEFAULT_TITLE_PREFIXES,
+    runningFrames: [...DEFAULT_TITLE_PREFIXES.runningFrames],
+  };
 }
 
 export function shouldEnableTitlePlugin(
@@ -256,6 +282,12 @@ function hasRunningTitleSource(
  ): boolean {
   return state.agentRunning || state.isCompacting;
 }
+function hasPersistentTitleSource(
+  state: Pick<InternalTitleControllerState, "agentRunning" | "isCompacting" | "askDepth">,
+): boolean {
+  return hasRunningTitleSource(state) || state.askDepth > 0;
+}
+
 
 export function computeVisualState(agentRunning: boolean, askDepth: number): TitleIconState {
   if (askDepth > 0) {
@@ -279,20 +311,52 @@ function setCompactingState(state: InternalTitleControllerState, isCompacting: b
 function formatTitle(prefix: string, baseTitle: string): string {
   return prefix ? `${prefix} ${baseTitle}` : baseTitle;
 }
+function selectRunningPrefix(prefixes: TitlePrefixes, runningFrameIndex: number): string {
+  if (prefixes.runningFrames.length === 0) {
+    return prefixes.running;
+  }
+
+  return prefixes.runningFrames[runningFrameIndex % prefixes.runningFrames.length] ?? prefixes.running;
+}
+
 
 function renderTitleWithPrefixes(
   baseTitle: string,
   state: TitleIconState,
   prefixes: TitlePrefixes,
+  runningFrameIndex: number,
 ): string {
   switch (state) {
     case "ask":
       return formatTitle(prefixes.ask, baseTitle);
     case "running":
-      return formatTitle(prefixes.running, baseTitle);
+      return formatTitle(selectRunningPrefix(prefixes, runningFrameIndex), baseTitle);
     case "idle":
       return formatTitle(prefixes.idle, baseTitle);
   }
+}
+
+function updateRunningFrame(state: InternalTitleControllerState, now: number): void {
+  if (!hasRunningTitleSource(state)) {
+    state.runningFrameIndex = 0;
+    state.runningFrameUpdatedAt = undefined;
+    return;
+  }
+
+  if (state.runningFrameUpdatedAt === undefined) {
+    state.runningFrameIndex = 0;
+    state.runningFrameUpdatedAt = now;
+    return;
+  }
+
+  const elapsed = now - state.runningFrameUpdatedAt;
+  if (elapsed < RUNNING_FRAME_INTERVAL_MS) {
+    return;
+  }
+
+  const steps = Math.floor(elapsed / RUNNING_FRAME_INTERVAL_MS);
+  state.runningFrameIndex += steps;
+  state.runningFrameUpdatedAt += steps * RUNNING_FRAME_INTERVAL_MS;
 }
 
 
@@ -308,6 +372,7 @@ function applyTitle(
     baseTitle,
     computeVisualState(hasRunningTitleSource(state), state.askDepth),
     prefixes,
+    state.runningFrameIndex,
   );
 
   if (!options.force && state.lastAppliedTitle === nextTitle) {
@@ -339,6 +404,7 @@ function startReassert(
   }
 
   stopReassert(state, scheduler);
+  updateRunningFrame(state, scheduler.now());
   state.reassertUntil = scheduler.now() + REASSERT_DURATION_MS;
 
   applyTitle(pi, ctx, state, prefixes, { force: true });
@@ -349,11 +415,12 @@ function startReassert(
       return;
     }
 
-    if (!hasRunningTitleSource(state) && scheduler.now() >= state.reassertUntil) {
+    if (!hasPersistentTitleSource(state) && scheduler.now() >= state.reassertUntil) {
       stopReassert(state, scheduler);
       return;
     }
 
+    updateRunningFrame(state, scheduler.now());
     applyTitle(pi, ctx, state, prefixes, { force: true });
   }, REASSERT_INTERVAL_MS);
 }
@@ -386,6 +453,8 @@ export default function registerTitleIcon(
     isShutdown: false,
     reassertTimer: undefined,
     reassertUntil: 0,
+    runningFrameIndex: 0,
+    runningFrameUpdatedAt: undefined,
     lastAppliedTitle: undefined,
   };
 
@@ -424,6 +493,8 @@ export default function registerTitleIcon(
     state.agentRunning = false;
     state.isCompacting = false;
     state.askDepth = 0;
+    state.runningFrameIndex = 0;
+    state.runningFrameUpdatedAt = undefined;
     stopReassert(state, scheduler);
   });
 
